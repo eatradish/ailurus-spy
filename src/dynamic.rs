@@ -55,18 +55,18 @@ struct User {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-struct Picture {
-    img_src: Option<String>,
+pub struct Picture {
+    pub img_src: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-struct BiliDynamicResult {
-    user: Option<String>,
-    uid: Option<u64>,
-    description: Option<String>,
-    picture: Option<Vec<Picture>>,
-    url: String,
-    timestamp: u64,
+pub struct BiliDynamicResult {
+    pub user: Option<String>,
+    pub uid: Option<u64>,
+    pub description: Option<String>,
+    pub picture: Option<Vec<Picture>>,
+    pub url: String,
+    pub timestamp: u64,
 }
 
 fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
@@ -117,7 +117,7 @@ fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
     }
 }
 
-async fn get_ailurus_dynamic(uid: &str, client: &Client) -> Result<Vec<BiliDynamicResult>> {
+pub async fn get_ailurus_dynamic(uid: u64, client: &Client) -> Result<Vec<BiliDynamicResult>> {
     let mut result = vec![];
     let mut headers = HeaderMap::new();
     headers.append(
@@ -167,6 +167,6 @@ async fn get_ailurus_dynamic(uid: &str, client: &Client) -> Result<Vec<BiliDynam
 #[tokio::test]
 async fn test() {
     let client = Client::new();
-    let json = get_ailurus_dynamic("1501380958", &client).await.unwrap();
+    let json = get_ailurus_dynamic(1501380958, &client).await.unwrap();
     dbg!(json);
 }
