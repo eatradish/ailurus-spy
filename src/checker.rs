@@ -7,7 +7,8 @@ use teloxide::{
     types::{ChatId, InputFile, InputMedia, InputMediaPhoto, Recipient},
     Bot,
 };
-use tracing::{info, error};
+use time::{format_description, OffsetDateTime};
+use tracing::{error, info};
 
 use crate::{dynamic, RedisAsyncConnect};
 
@@ -39,7 +40,11 @@ pub async fn check_dynamic_update(
                     "None".to_string()
                 };
                 info!("用户 {} 有新动态！内容：{}", name, desc);
-                let s = format!("{} 有新动态啦！\n{}\n{}", name, desc, i.url);
+                let t = OffsetDateTime::from_unix_timestamp(i.timestamp.try_into()?)?;
+                let format =
+                    format_description::parse("[year]-[month]-[day] [year]-[month]-[day]")?;
+                let date = t.format(&format)?;
+                let s = format!("{} 有新动态啦！\n{}\n{}\n{}", name, date, desc, i.url);
                 if let Some(picture) = &i.picture {
                     let mut group = Vec::new();
                     for i in picture {
