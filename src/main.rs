@@ -42,10 +42,12 @@ async fn init() -> Result<(MultiplexedConnection, reqwest::Client)> {
 
 async fn tasker(con: &MultiplexedConnection, resp_client: &reqwest::Client, bot: &AutoSend<Bot>) {
     loop {
-        let _ = tokio::join!(
+        if let Err(e) = tokio::try_join!(
             checker::check_dynamic_update(con, 1501380958, resp_client, bot),
             checker::check_live_status(con, 22746343, resp_client, bot),
-        );
+        ) {
+            error!("{}", e);
+        }
         // if let Err(e) = checker::check_dynamic_update(con, 1501380958, resp_client, bot).await {
         //     error!("{}", e);
         // }
