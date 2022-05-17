@@ -1,7 +1,13 @@
 use anyhow::{anyhow, Result};
 use redis::AsyncCommands;
-use reqwest::Client;
-use tracing::info;
+use reqwest::{Client, Url};
+use teloxide::{
+    adaptors::AutoSend,
+    prelude::Requester,
+    types::{ChatId, InputFile, InputMedia, InputMediaPhoto, Recipient},
+    Bot,
+};
+use tracing::{info, error};
 
 use crate::{dynamic, RedisAsyncConnect};
 
@@ -9,6 +15,7 @@ pub async fn check_dynamic_update(
     con: &mut RedisAsyncConnect,
     uid: u64,
     client: &Client,
+    bot: &AutoSend<Bot>,
 ) -> Result<()> {
     info!("checking {} dynamic update ...", uid);
     let key = format!("dynamic-{}", uid);
@@ -19,20 +26,44 @@ pub async fn check_dynamic_update(
         con.set(&key, dynamic[0].timestamp).await?;
     }
     if let Ok(t) = v {
-        if dynamic[0].timestamp > t {
-            let name = if let Some(name) = dynamic[0].user.clone() {
-                name
-            } else {
-                format!("{}", uid)
-            };
-            let desc = if let Some(desc) = dynamic[0].description.clone() {
-                desc
-            } else {
-                "None".to_string()
-            };
-            info!("用户 {} 有新动态！内容：{}", name, desc);
-            con.set(&key, dynamic[0].timestamp).await?;
+        for i in dynamic {
+            if i.timestamp > t {
+                let name = if let Some(name) = i.user.clone() {
+                    name
+                } else {
+                    format!("{}", uid)
+                };
+                let desc = if let Some(desc) = i.description.clone() {
+                    desc
+                } else {
+                    "None".to_string()
+                };
+                info!("用户 {} 有新动态！内容：{}", name, desc);
+                let s = format!("{} 有新动态啦！\n{}\n{}", name, desc, i.url);
+                if let Some(picture) = &i.picture {
+                    let mut group = Vec::new();
+                    for i in picture {
+                        if let Some(img) = &i.img_src {
+                            group.push(InputMedia::Photo(InputMediaPhoto {
+                                media: InputFile::url(Url::parse(img)?),
+                                caption: Some(s.clone()),
+                                parse_mode: None,
+                                caption_entities: None,
+                            }));
+                        }
+                    }
+                    bot.send_media_group(Recipient::Id(ChatId(-1001675012012)), group)
+                        .await?;
+                } else {
+                    bot.send_message(Recipient::Id(ChatId(-1001675012012)), s)
+                        .await?;
+                }
+                info!("Update {} timestamp", key);
+                con.set(&key, i.timestamp).await?;
+            }
         }
+    } else {
+        error!("{}", v.unwrap_err());
     }
 
     Ok(())

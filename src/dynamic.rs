@@ -1,6 +1,7 @@
 use anyhow::Result;
 use reqwest::{header::HeaderMap, Client};
 use serde::Deserialize;
+use tracing::error;
 
 #[derive(Debug, Deserialize, Clone)]
 struct BiliDynamic {
@@ -141,7 +142,7 @@ pub async fn get_ailurus_dynamic(uid: u64, client: &Client) -> Result<Vec<BiliDy
     for (i, c) in cards.iter().enumerate() {
         let json = serde_json::from_str::<CardInner>(&c.card);
         if json.is_err() {
-            dbg!(i, c, &json);
+            error!("{} {:?} {:?}", i, c, &json);
         }
         if let Ok(json) = json {
             r.data.cards[i].card_dese = Some(json);
@@ -167,6 +168,6 @@ pub async fn get_ailurus_dynamic(uid: u64, client: &Client) -> Result<Vec<BiliDy
 #[tokio::test]
 async fn test() {
     let client = Client::new();
-    let json = get_ailurus_dynamic(1501380958, &client).await.unwrap();
+    let json = get_ailurus_dynamic(11554380, &client).await.unwrap();
     dbg!(json);
 }

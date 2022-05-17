@@ -2,6 +2,7 @@ use std::pin::Pin;
 
 use anyhow::Result;
 use redis::aio::AsyncStream;
+use teloxide::prelude::*;
 use tokio::time::{sleep, Duration};
 use tracing::{error, info};
 
@@ -14,9 +15,12 @@ pub type RedisAsyncConnect = redis::aio::Connection<Pin<Box<dyn AsyncStream + Se
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
+    dotenv::dotenv().ok();
+    let bot = Bot::from_env().auto_send();
+
     match init().await {
         Ok((mut con, resp_client)) => {
-            tasker(&mut con, &resp_client).await;
+            tasker(&mut con, &resp_client, &bot).await;
         }
         Err(e) => {
             error!("{}", e);
@@ -36,9 +40,9 @@ async fn init() -> Result<(RedisAsyncConnect, reqwest::Client)> {
     Ok((connect, resp_client))
 }
 
-async fn tasker(con: &mut RedisAsyncConnect, resp_client: &reqwest::Client) {
+async fn tasker(con: &mut RedisAsyncConnect, resp_client: &reqwest::Client, bot: &AutoSend<Bot>) {
     loop {
-        if let Err(e) = checker::check_dynamic_update(con, 1501380958, resp_client).await {
+        if let Err(e) = checker::check_dynamic_update(con, 1501380958, resp_client, bot).await {
             error!("{}", e);
         }
         sleep(Duration::from_secs(180)).await;
