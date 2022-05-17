@@ -145,6 +145,8 @@ async fn get_ailurus_dynamic(uid: &str, client: &Client) -> Result<Vec<BiliDynam
         }
         if let Ok(json) = json {
             r.data.cards[i].card_dese = Some(json);
+        } else {
+            continue;
         }
         if let Some(mut card_dese) = r.data.cards[i].card_dese.to_owned() {
             if let Some(origin) = &card_dese.origin {
