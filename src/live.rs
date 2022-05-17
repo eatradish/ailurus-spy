@@ -40,15 +40,15 @@ struct LiveUserStatusDataInfo {
 }
 
 #[derive(Debug, Deserialize)]
-struct LiveStatusResult {
-    room_id: u64,
-    uid: u64,
-    uname: String,
-    title: String,
-    live_status: i32,
+pub struct LiveStatusResult {
+    pub room_id: u64,
+    pub uid: u64,
+    pub uname: String,
+    pub title: String,
+    pub live_status: i32,
 }
 
-async fn get_live_status(room_id: u64, client: &Client) -> Result<LiveStatusResult> {
+pub async fn get_live_status(room_id: u64, client: &Client) -> Result<LiveStatusResult> {
     let room_id = get_room_id_from_short(room_id, client).await?;
     let mut header_map = HeaderMap::new();
     header_map.insert(

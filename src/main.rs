@@ -1,7 +1,7 @@
 use std::pin::Pin;
 
 use anyhow::Result;
-use redis::aio::AsyncStream;
+use redis::aio::{AsyncStream, MultiplexedConnection};
 use teloxide::prelude::*;
 use tokio::time::{sleep, Duration};
 use tracing::{error, info};
@@ -29,10 +29,10 @@ async fn main() {
     }
 }
 
-async fn init() -> Result<(RedisAsyncConnect, reqwest::Client)> {
+async fn init() -> Result<(MultiplexedConnection, reqwest::Client)> {
     info!("Connecting redis://127.0.0.1 ...");
     let redis_client = redis::Client::open("redis://127.0.0.1/")?;
-    let connect = redis_client.get_async_connection().await?;
+    let connect = redis_client.get_multiplexed_tokio_connection().await?;
     let resp_client = reqwest::ClientBuilder::new()
         .user_agent("User-Agent: Mozilla/5.0 (X11; AOSC OS; Linux x86_64; rv:98.0) Gecko/20100101 Firefox/98.0")
         .build()?;
@@ -40,11 +40,15 @@ async fn init() -> Result<(RedisAsyncConnect, reqwest::Client)> {
     Ok((connect, resp_client))
 }
 
-async fn tasker(con: &mut RedisAsyncConnect, resp_client: &reqwest::Client, bot: &AutoSend<Bot>) {
+async fn tasker(con: &MultiplexedConnection, resp_client: &reqwest::Client, bot: &AutoSend<Bot>) {
     loop {
-        if let Err(e) = checker::check_dynamic_update(con, 1501380958, resp_client, bot).await {
-            error!("{}", e);
-        }
+        let _ = tokio::join!(
+            checker::check_dynamic_update(con, 1501380958, resp_client, bot), 
+            checker::check_live_status(con, 22746343, resp_client, bot),
+        );
+        // if let Err(e) = checker::check_dynamic_update(con, 1501380958, resp_client, bot).await {
+        //     error!("{}", e);
+        // }
         sleep(Duration::from_secs(180)).await;
     }
 }

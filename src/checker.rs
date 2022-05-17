@@ -1,5 +1,7 @@
+use std::time::SystemTime;
+
 use anyhow::{anyhow, Result};
-use redis::AsyncCommands;
+use redis::{aio::MultiplexedConnection, AsyncCommands};
 use reqwest::{Client, Url};
 use teloxide::{
     adaptors::AutoSend,
@@ -10,20 +12,21 @@ use teloxide::{
 use time::{format_description, OffsetDateTime};
 use tracing::{error, info};
 
-use crate::{dynamic, RedisAsyncConnect};
+use crate::{dynamic, live};
 
 pub async fn check_dynamic_update(
-    con: &mut RedisAsyncConnect,
+    con: &MultiplexedConnection,
     uid: u64,
     client: &Client,
     bot: &AutoSend<Bot>,
 ) -> Result<()> {
+    let mut con = con.clone();
     info!("checking {} dynamic update ...", uid);
     let key = format!("dynamic-{}", uid);
     let dynamic = dynamic::get_ailurus_dynamic(uid, client).await?;
     let v: Result<u64> = con.get(&key).await.map_err(|e| anyhow!("{}", e));
     if v.is_err() {
-        info!("Creating new spy {}...", key);
+        info!("Creating new spy {}...", &key);
         con.set(&key, dynamic[0].timestamp).await?;
     }
     if let Ok(t) = v {
@@ -69,6 +72,39 @@ pub async fn check_dynamic_update(
         }
     } else {
         error!("{}", v.unwrap_err());
+    }
+
+    Ok(())
+}
+
+pub async fn check_live_status(
+    con: &MultiplexedConnection,
+    room_id: u64,
+    client: &Client,
+    bot: &AutoSend<Bot>,
+) -> Result<()> {
+    let mut con = con.clone();
+    info!("checking room {} live status update ...", room_id);
+    let key = format!("live-{}-timestamp", room_id);
+    let key2 = format!("live-{}-status", room_id);
+    let live = live::get_live_status(room_id, client).await?;
+    let timestamp: Result<u64> = con.get(&key).await.map_err(|e| anyhow!(e));
+    let live_status: Result<bool> = con.get(&key2).await.map_err(|e| anyhow!(e));
+    let ls = live.live_status;
+    let t = SystemTime::now().elapsed()?.as_secs();
+    con.set(&key, t).await?;
+    if live_status.is_err() || timestamp.is_err() {
+        con.set(&key, if ls != 1 { false } else { true }).await?;
+    } else {
+        if ls == 1 {
+            let s = format!("{} 开播啦！标题：{}", live.uname, live.title);
+            info!("{}", s);
+            bot.send_message(Recipient::Id(ChatId(-1001675012012)), s)
+                .await?;
+            con.set(key2, true).await?;
+        } else {
+            con.set(key2, false).await?;
+        }
     }
 
     Ok(())
