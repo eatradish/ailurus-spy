@@ -5,15 +5,17 @@ use tracing::info;
 
 use crate::{dynamic, RedisAsyncConnect};
 
-async fn check_dynamic_update(
+pub async fn check_dynamic_update(
     con: &mut RedisAsyncConnect,
     uid: u64,
     client: &Client,
 ) -> Result<()> {
+    info!("checking {} dynamic update ...", uid);
     let key = format!("dynamic-{}", uid);
     let dynamic = dynamic::get_ailurus_dynamic(uid, client).await?;
     let v: Result<u64> = con.get(&key).await.map_err(|e| anyhow!("{}", e));
     if v.is_err() {
+        info!("Creating new spy {}...", key);
         con.set(&key, dynamic[0].timestamp).await?;
     }
     if let Ok(t) = v {
