@@ -19,8 +19,8 @@ async fn main() {
     let bot = Bot::from_env().auto_send();
 
     match init().await {
-        Ok((mut con, resp_client)) => {
-            tasker(&mut con, &resp_client, &bot).await;
+        Ok((con, resp_client)) => {
+            tasker(&con, &resp_client, &bot).await;
         }
         Err(e) => {
             error!("{}", e);
@@ -43,7 +43,7 @@ async fn init() -> Result<(MultiplexedConnection, reqwest::Client)> {
 async fn tasker(con: &MultiplexedConnection, resp_client: &reqwest::Client, bot: &AutoSend<Bot>) {
     loop {
         let _ = tokio::join!(
-            checker::check_dynamic_update(con, 1501380958, resp_client, bot), 
+            checker::check_dynamic_update(con, 1501380958, resp_client, bot),
             checker::check_live_status(con, 22746343, resp_client, bot),
         );
         // if let Err(e) = checker::check_dynamic_update(con, 1501380958, resp_client, bot).await {

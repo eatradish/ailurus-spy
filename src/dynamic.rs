@@ -76,10 +76,8 @@ fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
 
     let user = if let Some(u) = c.user.and_then(|x| x.name) {
         Some(u)
-    } else if let Some(u) = user_info_clone.and_then(|x| x.uname) {
-        Some(u)
     } else {
-        None
+        user_info_clone.and_then(|x| x.uname)
     };
     let uid = if let Some(user_info) = user_info_clone_2 {
         Some(user_info.uid)
@@ -99,10 +97,8 @@ fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
         } else {
             Some(content)
         }
-    } else if let Some(title) = c.title {
-        Some(title)
     } else {
-        None
+        c.title
     };
     let dynamic_id = desc.dynamic_id;
     let url = format!("https://t.bilibili.com/{}", dynamic_id);
@@ -151,7 +147,7 @@ pub async fn get_ailurus_dynamic(uid: u64, client: &Client) -> Result<Vec<BiliDy
         }
         if let Some(mut card_dese) = r.data.cards[i].card_dese.to_owned() {
             if let Some(origin) = &card_dese.origin {
-                let s: Origin = serde_json::from_str(&origin)?;
+                let s: Origin = serde_json::from_str(origin)?;
                 card_dese.origin_dese = Some(s);
                 r.data.cards[i].card_dese = Some(card_dese);
             }

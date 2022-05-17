@@ -94,17 +94,20 @@ pub async fn check_live_status(
     let t = SystemTime::now().elapsed()?.as_secs();
     con.set(&key, t).await?;
     if live_status.is_err() || timestamp.is_err() {
-        con.set(&key, if ls != 1 { false } else { true }).await?;
+        con.set(&key, ls == 1).await?;
+    } else if ls == 1 {
+        let s = format!(
+            "{} 开播啦！\n{}\n{}",
+            live.uname,
+            live.title,
+            format!("https://live.billibili.com/{}", live.room_id)
+        );
+        info!("{}", s);
+        bot.send_message(Recipient::Id(ChatId(-1001675012012)), s)
+            .await?;
+        con.set(key2, true).await?;
     } else {
-        if ls == 1 {
-            let s = format!("{} 开播啦！标题：{}", live.uname, live.title);
-            info!("{}", s);
-            bot.send_message(Recipient::Id(ChatId(-1001675012012)), s)
-                .await?;
-            con.set(key2, true).await?;
-        } else {
-            con.set(key2, false).await?;
-        }
+        con.set(key2, false).await?;
     }
 
     Ok(())
