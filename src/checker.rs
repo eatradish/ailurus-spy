@@ -80,10 +80,9 @@ pub async fn check_live_status(
 ) -> Result<()> {
     let mut con = con.clone();
     info!("checking room {} live status update ...", room_id);
-    let key = format!("live-{}-timestamp", room_id);
-    let key2 = format!("live-{}-status", room_id);
+    let key = format!("live-{}-status", room_id);
     let live = live::get_live_status(room_id, client).await?;
-    let db_live_status: Result<bool> = con.get(&key2).await.map_err(|e| anyhow!(e));
+    let db_live_status: Result<bool> = con.get(&key).await.map_err(|e| anyhow!(e));
     let ls = live.live_status;
     let date = live.live_time;
     if db_live_status.is_err() {
@@ -101,11 +100,11 @@ pub async fn check_live_status(
             info!("{}", s);
             bot.send_message(Recipient::Id(ChatId(-1001675012012)), s)
                 .await?;
-            con.set(key2, true).await?;
+            con.set(key, true).await?;
         } else if db_live_status && ls == 1 {
-            con.set(key2, true).await?;
+            con.set(key, true).await?;
         } else if ls == 0 {
-            con.set(key2, false).await?;
+            con.set(key, false).await?;
         }
     }
 
