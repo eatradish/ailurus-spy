@@ -3,7 +3,7 @@ use redis::{aio::MultiplexedConnection, AsyncCommands};
 use reqwest::{Client, Url};
 use teloxide::{
     adaptors::AutoSend,
-    payloads::SendMessageSetters,
+    payloads::{SendMessageSetters, SendPhotoSetters},
     prelude::Requester,
     types::{ChatId, InputFile, InputMedia, InputMediaPhoto, ParseMode, Recipient},
     Bot,
@@ -103,9 +103,13 @@ pub async fn check_live_status(
                 format_args!("https://live.billibili.com/{}", live.room_id)
             );
             info!("{}", s);
-            bot.send_message(Recipient::Id(ChatId(-1001675012012)), s)
-                .parse_mode(ParseMode::Html)
-                .await?;
+            bot.send_photo(
+                Recipient::Id(ChatId(-1001675012012)),
+                InputFile::url(Url::parse(&live.user_cover)?),
+            )
+            .caption(s)
+            .parse_mode(ParseMode::Html)
+            .await?;
             con.set(key, true).await?;
         } else if db_live_status && ls == 1 {
             con.set(key, true).await?;
