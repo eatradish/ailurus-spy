@@ -43,6 +43,8 @@ struct CardInner {
     user: Option<User>,
     item: Option<CardItem>,
     title: Option<String>,
+    short_link: Option<String>,
+    short_link_v2: Option<String>,
     origin: Option<String>,
     origin_dese: Option<Origin>,
 }
@@ -135,7 +137,19 @@ fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
             Some(content)
         }
     } else {
-        c.title
+        c.title.and_then(|x| {
+            Some(format!(
+                "{}{}",
+                x,
+                if let Some(url) = c.short_link_v2 {
+                    format!("({})", url)
+                } else if let Some(url) = c.short_link {
+                    format!("({})", url)
+                } else {
+                    "".to_string()
+                }
+            ))
+        })
     };
     let dynamic_id = desc.dynamic_id;
     let url = format!("https://t.bilibili.com/{}", dynamic_id);
@@ -202,5 +216,5 @@ pub async fn get_ailurus_dynamic(uid: u64, client: &Client) -> Result<Vec<BiliDy
 async fn test() {
     let client = Client::new();
     let json = get_ailurus_dynamic(1501380958, &client).await.unwrap();
-    dbg!(json[0].to_owned());
+    dbg!(json[1].to_owned());
 }
