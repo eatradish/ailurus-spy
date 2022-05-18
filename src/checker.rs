@@ -44,7 +44,7 @@ pub async fn check_dynamic_update(
                 info!("用户 {} 有新动态！内容：{}", name, desc);
                 let date = timestamp_to_date(i.timestamp)?;
                 let s = format!(
-                    "<b>{} 有新动态啦！</b>\n{}\n---\n{}\n\n{}",
+                    "<b>{} 有新动态啦！</b>\n{}\n{}\n\n{}",
                     name, date, desc, i.url
                 );
                 if let Some(picture) = &i.picture {
