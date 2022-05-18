@@ -85,16 +85,16 @@ pub async fn check_live_status(
     let key = format!("live-{}-timestamp", room_id);
     let key2 = format!("live-{}-status", room_id);
     let live = live::get_live_status(room_id, client).await?;
-    let live_status: Result<bool> = con.get(&key2).await.map_err(|e| anyhow!(e));
+    let db_live_status: Result<bool> = con.get(&key2).await.map_err(|e| anyhow!(e));
     let ls = live.live_status;
     let t = SystemTime::now().elapsed()?.as_secs();
     let date = timestamp_to_date(t)?;
     con.set(&key, t).await?;
-    if live_status.is_err() {
+    if db_live_status.is_err() {
         con.set(&key, ls == 1).await?;
     } else {
-        let live_status = live_status.unwrap();
-        if !live_status && ls == 1 {
+        let db_live_status = db_live_status.unwrap();
+        if !db_live_status && ls == 1 {
             let s = format!(
                 "{} 开播啦！\n{}\n{}\n{}",
                 date,
@@ -106,7 +106,7 @@ pub async fn check_live_status(
             bot.send_message(Recipient::Id(ChatId(-1001675012012)), s)
                 .await?;
             con.set(key2, true).await?;
-        } else if live_status && ls == 1 {
+        } else if db_live_status && ls == 1 {
             con.set(key2, true).await?;
         } else if ls == 0 {
             con.set(key2, false).await?;
