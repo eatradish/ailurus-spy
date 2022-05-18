@@ -123,8 +123,8 @@ fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
             Some(content)
         }
     } else {
-        c.title.and_then(|x| {
-            Some(format!(
+        c.title.map(|x| {
+            format!(
                 "{}{}",
                 x,
                 if let Some(url) = c.short_link_v2 {
@@ -134,18 +134,23 @@ fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
                 } else {
                     "".to_string()
                 }
-            ))
+            )
         })
     };
     let dynamic_id = desc.dynamic_id;
     let url = format!("https://t.bilibili.com/{}", dynamic_id);
     let time = desc.timestamp;
+    let picture = if let Some(pics) = item_clone_2.and_then(|x| x.pictures) {
+        Some(pics)
+    } else {
+        c.origin_dese.and_then(|x| x.item.and_then(|x| x.pictures))
+    };
 
     BiliDynamicResult {
         user,
         uid,
         description,
-        picture: item_clone_2.and_then(|x| x.pictures),
+        picture,
         url,
         timestamp: time,
     }
