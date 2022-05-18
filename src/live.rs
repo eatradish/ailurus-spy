@@ -21,6 +21,7 @@ struct LiveRoomStatus {
 struct LiveRoomData {
     title: String,
     live_status: i32,
+    live_time: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,6 +47,7 @@ pub struct LiveStatusResult {
     pub uname: String,
     pub title: String,
     pub live_status: i32,
+    pub live_time: String,
 }
 
 pub async fn get_live_status(room_id: u64, client: &Client) -> Result<LiveStatusResult> {
@@ -72,6 +74,7 @@ pub async fn get_live_status(room_id: u64, client: &Client) -> Result<LiveStatus
     let uname = live_user_status.uname;
     let title = live_room_data.title;
     let live_status = live_room_data.live_status;
+    let live_time = live_room_data.live_time;
 
     Ok(LiveStatusResult {
         room_id,
@@ -79,6 +82,7 @@ pub async fn get_live_status(room_id: u64, client: &Client) -> Result<LiveStatus
         uname,
         title,
         live_status,
+        live_time,
     })
 }
 

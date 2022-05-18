@@ -1,5 +1,3 @@
-use std::time::SystemTime;
-
 use anyhow::{anyhow, Result};
 use redis::{aio::MultiplexedConnection, AsyncCommands};
 use reqwest::{Client, Url};
@@ -87,9 +85,7 @@ pub async fn check_live_status(
     let live = live::get_live_status(room_id, client).await?;
     let db_live_status: Result<bool> = con.get(&key2).await.map_err(|e| anyhow!(e));
     let ls = live.live_status;
-    let t = SystemTime::now().elapsed()?.as_secs();
-    let date = timestamp_to_date(t)?;
-    con.set(&key, t).await?;
+    let date = live.live_time;
     if db_live_status.is_err() {
         con.set(&key, ls == 1).await?;
     } else {
@@ -97,8 +93,8 @@ pub async fn check_live_status(
         if !db_live_status && ls == 1 {
             let s = format!(
                 "{} 开播啦！\n{}\n{}\n{}",
-                date,
                 live.uname,
+                date,
                 live.title,
                 format_args!("https://live.billibili.com/{}", live.room_id)
             );
