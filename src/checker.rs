@@ -3,8 +3,9 @@ use redis::{aio::MultiplexedConnection, AsyncCommands};
 use reqwest::{Client, Url};
 use teloxide::{
     adaptors::AutoSend,
+    payloads::SendMessageSetters,
     prelude::Requester,
-    types::{ChatId, InputFile, InputMedia, InputMediaPhoto, Recipient},
+    types::{ChatId, InputFile, InputMedia, InputMediaPhoto, ParseMode, Recipient},
     Bot,
 };
 use time::{format_description, macros::offset, OffsetDateTime};
@@ -42,7 +43,10 @@ pub async fn check_dynamic_update(
                 };
                 info!("用户 {} 有新动态！内容：{}", name, desc);
                 let date = timestamp_to_date(i.timestamp)?;
-                let s = format!("{} 有新动态啦！\n{}\n{}\n{}", name, date, desc, i.url);
+                let s = format!(
+                    "<b>{} 有新动态啦！</b>\n{}\n---\n{}\n\n{}",
+                    name, date, desc, i.url
+                );
                 if let Some(picture) = &i.picture {
                     let mut group = Vec::new();
                     for i in picture {
@@ -50,7 +54,7 @@ pub async fn check_dynamic_update(
                             group.push(InputMedia::Photo(InputMediaPhoto {
                                 media: InputFile::url(Url::parse(img)?),
                                 caption: Some(s.clone()),
-                                parse_mode: None,
+                                parse_mode: Some(ParseMode::Html),
                                 caption_entities: None,
                             }));
                         }
@@ -59,6 +63,7 @@ pub async fn check_dynamic_update(
                         .await?;
                 } else {
                     bot.send_message(Recipient::Id(ChatId(-1001675012012)), s)
+                        .parse_mode(ParseMode::Html)
                         .await?;
                 }
                 info!("Update {} timestamp", key);
@@ -91,7 +96,7 @@ pub async fn check_live_status(
         let db_live_status = db_live_status.unwrap();
         if !db_live_status && ls == 1 {
             let s = format!(
-                "{} 开播啦！\n{}\n{}\n{}",
+                "<b>{} 开播啦！</b>\n{}\n{}\n\n{}",
                 live.uname,
                 date,
                 live.title,
@@ -99,6 +104,7 @@ pub async fn check_live_status(
             );
             info!("{}", s);
             bot.send_message(Recipient::Id(ChatId(-1001675012012)), s)
+                .parse_mode(ParseMode::Html)
                 .await?;
             con.set(key, true).await?;
         } else if db_live_status && ls == 1 {
