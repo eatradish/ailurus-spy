@@ -46,15 +46,7 @@ struct CardInner {
     short_link: Option<String>,
     short_link_v2: Option<String>,
     origin: Option<String>,
-    origin_dese: Option<Origin>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-struct Origin {
-    item: Option<CardItem>,
-    title: Option<String>,
-    short_link: Option<String>,
-    short_link_v2: Option<String>,
+    origin_dese: Box<Option<CardInner>>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -110,24 +102,18 @@ fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
     } else if let Some(content) = item_clone.and_then(|x| x.content) {
         if let Some(origin_desc) = c
             .origin_dese
-            .as_ref()
-            .and_then(|x| x.item.as_ref().and_then(|x| x.description.as_ref()))
+            .clone()
+            .and_then(|x| x.item.and_then(|x| x.description))
         {
             Some(format!("{} // {}", content, origin_desc))
-        } else if let Some(origin_title) = c.origin_dese.as_ref().and_then(|x| x.title.as_ref()) {
+        } else if let Some(origin_title) = c.origin_dese.clone().and_then(|x| x.title) {
             Some(format!(
                 "{} // {}{}",
                 content,
                 origin_title,
-                if let Some(link) = c
-                    .origin_dese
-                    .as_ref()
-                    .and_then(|x| x.short_link_v2.as_ref())
-                {
+                if let Some(link) = c.origin_dese.clone().and_then(|x| x.short_link_v2) {
                     format!("({})", link)
-                } else if let Some(link) =
-                    c.origin_dese.as_ref().and_then(|x| x.short_link.as_ref())
-                {
+                } else if let Some(link) = c.origin_dese.clone().and_then(|x| x.short_link) {
                     format!("({})", link)
                 } else {
                     "".to_string()
@@ -198,8 +184,8 @@ pub async fn get_ailurus_dynamic(uid: u64, client: &Client) -> Result<Vec<BiliDy
         }
         if let Some(mut card_dese) = r.data.cards[i].card_dese.to_owned() {
             if let Some(origin) = &card_dese.origin {
-                let s: Origin = serde_json::from_str(origin)?;
-                card_dese.origin_dese = Some(s);
+                let s: CardInner = serde_json::from_str(origin)?;
+                card_dese.origin_dese = Box::new(Some(s));
                 r.data.cards[i].card_dese = Some(card_dese);
             }
         }
