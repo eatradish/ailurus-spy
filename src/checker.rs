@@ -7,7 +7,7 @@ use teloxide::{
     types::{ChatId, InputFile, InputMedia, InputMediaPhoto, Recipient},
     Bot,
 };
-use time::{format_description, OffsetDateTime};
+use time::{format_description, macros::offset, OffsetDateTime};
 use tracing::{error, info};
 
 use crate::{dynamic, live};
@@ -113,7 +113,9 @@ pub async fn check_live_status(
 
 fn timestamp_to_date(t: u64) -> Result<String> {
     let format = format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")?;
-    let date = OffsetDateTime::from_unix_timestamp(t.try_into()?)?.format(&format)?;
+    let date = OffsetDateTime::from_unix_timestamp(t.try_into()?)?
+        .to_offset(offset!(+8))
+        .format(&format)?;
 
     Ok(date)
 }
