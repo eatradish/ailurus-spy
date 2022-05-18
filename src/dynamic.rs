@@ -24,6 +24,18 @@ struct Card {
 struct Desc {
     dynamic_id: u64,
     timestamp: u64,
+    user_profile: Option<UserProfile>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct UserProfile {
+    info: UserProfileInfo,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct UserProfileInfo {
+    uid: u64,
+    uname: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -70,18 +82,21 @@ pub struct BiliDynamicResult {
 }
 
 fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
-    let user_info_clone = c.user.clone();
-    let user_info_clone_2 = c.user.clone();
+    let c_user_clone = c.user.clone();
+    let c_user_clone_2 = c.user.clone();
+    let desc_user_profile_clone = desc.user_profile.clone();
 
     let user = if let Some(u) = c.user.and_then(|x| x.name) {
         Some(u)
+    } else if let Some(u) = c_user_clone.and_then(|x| x.uname) {
+        Some(u)
     } else {
-        user_info_clone.and_then(|x| x.uname)
+        desc.user_profile.map(|x| x.info.uname)
     };
-    let uid = if let Some(user_info) = user_info_clone_2 {
-        Some(user_info.uid)
+    let uid = if let Some(id) = c_user_clone_2.map(|x| x.uid) {
+        Some(id)
     } else {
-        None
+        desc_user_profile_clone.map(|x| x.info.uid)
     };
     let item_clone = c.item.clone();
     let item_clone_2 = c.item.clone();
@@ -163,6 +178,6 @@ pub async fn get_ailurus_dynamic(uid: u64, client: &Client) -> Result<Vec<BiliDy
 #[tokio::test]
 async fn test() {
     let client = Client::new();
-    let json = get_ailurus_dynamic(11554380, &client).await.unwrap();
-    dbg!(json);
+    let json = get_ailurus_dynamic(1501380958, &client).await.unwrap();
+    dbg!(json[0].to_owned());
 }
