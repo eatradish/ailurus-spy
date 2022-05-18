@@ -48,9 +48,6 @@ async fn tasker(con: &MultiplexedConnection, resp_client: &reqwest::Client, bot:
         ) {
             error!("{}", e);
         }
-        // if let Err(e) = checker::check_dynamic_update(con, 1501380958, resp_client, bot).await {
-        //     error!("{}", e);
-        // }
         sleep(Duration::from_secs(180)).await;
     }
 }
