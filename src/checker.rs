@@ -112,7 +112,7 @@ pub async fn check_live_status(
 }
 
 fn timestamp_to_date(t: u64) -> Result<String> {
-    let format = format_description::parse("[year]-[month]-[day] [year]-[month]-[day]")?;
+    let format = format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")?;
     let date = OffsetDateTime::from_unix_timestamp(t.try_into()?)?.format(&format)?;
 
     Ok(date)

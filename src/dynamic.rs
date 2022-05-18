@@ -22,7 +22,6 @@ struct Card {
 
 #[derive(Debug, Deserialize, Clone)]
 struct Desc {
-    uid: u64,
     dynamic_id: u64,
     timestamp: u64,
 }
