@@ -43,10 +43,7 @@ pub async fn check_dynamic_update(
                     "None".to_string()
                 };
                 info!("用户 {} 有新动态！内容：{}", name, desc);
-                let t = OffsetDateTime::from_unix_timestamp(i.timestamp.try_into()?)?;
-                let format =
-                    format_description::parse("[year]-[month]-[day] [year]-[month]-[day]")?;
-                let date = t.format(&format)?;
+                let date = timestamp_to_date(i.timestamp)?;
                 let s = format!("{} 有新动态啦！\n{}\n{}\n{}", name, date, desc, i.url);
                 if let Some(picture) = &i.picture {
                     let mut group = Vec::new();
@@ -88,18 +85,19 @@ pub async fn check_live_status(
     let key = format!("live-{}-timestamp", room_id);
     let key2 = format!("live-{}-status", room_id);
     let live = live::get_live_status(room_id, client).await?;
-    let timestamp: Result<u64> = con.get(&key).await.map_err(|e| anyhow!(e));
     let live_status: Result<bool> = con.get(&key2).await.map_err(|e| anyhow!(e));
     let ls = live.live_status;
     let t = SystemTime::now().elapsed()?.as_secs();
+    let date = timestamp_to_date(t)?;
     con.set(&key, t).await?;
-    if live_status.is_err() || timestamp.is_err() {
+    if live_status.is_err() {
         con.set(&key, ls == 1).await?;
     } else {
         let live_status = live_status.unwrap();
         if !live_status && ls == 1 {
             let s = format!(
-                "{} 开播啦！\n{}\n{}",
+                "{} 开播啦！\n{}\n{}\n{}",
+                date,
                 live.uname,
                 live.title,
                 format_args!("https://live.billibili.com/{}", live.room_id)
@@ -116,4 +114,11 @@ pub async fn check_live_status(
     }
 
     Ok(())
+}
+
+fn timestamp_to_date(t: u64) -> Result<String> {
+    let format = format_description::parse("[year]-[month]-[day] [year]-[month]-[day]")?;
+    let date = OffsetDateTime::from_unix_timestamp(t.try_into()?)?.format(&format)?;
+
+    Ok(date)
 }
