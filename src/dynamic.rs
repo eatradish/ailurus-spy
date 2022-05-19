@@ -48,6 +48,7 @@ struct CardInner {
     pic: Option<String>,
     origin: Option<String>,
     origin_dese: Box<Option<CardInner>>,
+    origin_user: Option<UserProfile>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -106,7 +107,11 @@ fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
             .clone()
             .and_then(|x| x.item.and_then(|x| x.description))
         {
-            Some(format!("{} // {}", content, origin_desc))
+            if let Some(origin_user) = c.origin_user.and_then(|x| Some(x.info.uname)) {
+                Some(format!("{} // {}: {}", content, origin_user, origin_desc))
+            } else {
+                Some(format!("{} // {}", content, origin_desc))
+            }
         } else if let Some(origin_title) = c.origin_dese.clone().and_then(|x| x.title) {
             Some(format!(
                 "{} // {}{}",
