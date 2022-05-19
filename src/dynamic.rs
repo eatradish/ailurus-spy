@@ -131,12 +131,12 @@ fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
     } else {
         c.title.map(|x| {
             format!(
-                "{}{}",
+                "{}\n{}",
                 x,
                 if let Some(url) = c.short_link_v2 {
-                    format!("({})", url)
+                    format!("{}", url)
                 } else if let Some(url) = c.short_link {
-                    format!("({})", url)
+                    format!("{}", url)
                 } else {
                     "".to_string()
                 }
