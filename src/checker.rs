@@ -119,7 +119,7 @@ pub async fn check_live_status(
             con.set(key, true).await?;
         } else if db_live_status && ls == 1 {
             con.set(key, true).await?;
-        } else if ls == 0 {
+        } else if ls != 1 {
             con.set(key, false).await?;
         }
     }
