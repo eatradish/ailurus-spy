@@ -17,7 +17,7 @@ pub async fn check_dynamic_update(
     con: &MultiplexedConnection,
     uid: u64,
     client: &Client,
-    bot: &AutoSend<Bot>,
+    bot: Option<&AutoSend<Bot>>,
 ) -> Result<()> {
     let mut con = con.clone();
     info!("checking {} dynamic update ...", uid);
@@ -59,12 +59,16 @@ pub async fn check_dynamic_update(
                             }));
                         }
                     }
-                    bot.send_media_group(Recipient::Id(ChatId(-1001675012012)), group)
-                        .await?;
+                    if let Some(bot) = bot {
+                        bot.send_media_group(Recipient::Id(ChatId(-1001675012012)), group)
+                            .await?;
+                    }
                 } else {
-                    bot.send_message(Recipient::Id(ChatId(-1001675012012)), s)
-                        .parse_mode(ParseMode::Html)
-                        .await?;
+                    if let Some(bot) = bot {
+                        bot.send_message(Recipient::Id(ChatId(-1001675012012)), s)
+                            .parse_mode(ParseMode::Html)
+                            .await?;
+                    }
                 }
                 info!("Update {} timestamp", key);
                 con.set(&key, i.timestamp).await?;
@@ -81,7 +85,7 @@ pub async fn check_live_status(
     con: &MultiplexedConnection,
     room_id: u64,
     client: &Client,
-    bot: &AutoSend<Bot>,
+    bot: Option<&AutoSend<Bot>>,
 ) -> Result<()> {
     let mut con = con.clone();
     info!("checking room {} live status update ...", room_id);
@@ -103,13 +107,15 @@ pub async fn check_live_status(
                 format_args!("https://live.billibili.com/{}", live.room_id)
             );
             info!("{}", s);
-            bot.send_photo(
-                Recipient::Id(ChatId(-1001675012012)),
-                InputFile::url(Url::parse(&live.user_cover)?),
-            )
-            .caption(s)
-            .parse_mode(ParseMode::Html)
-            .await?;
+            if let Some(bot) = bot {
+                bot.send_photo(
+                    Recipient::Id(ChatId(-1001675012012)),
+                    InputFile::url(Url::parse(&live.user_cover)?),
+                )
+                .caption(s)
+                .parse_mode(ParseMode::Html)
+                .await?;
+            }
             con.set(key, true).await?;
         } else if db_live_status && ls == 1 {
             con.set(key, true).await?;

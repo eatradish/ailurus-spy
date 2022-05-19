@@ -2,7 +2,7 @@ use anyhow::Result;
 use redis::aio::MultiplexedConnection;
 use teloxide::prelude::*;
 use tokio::time::{sleep, Duration};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 mod checker;
 mod dynamic;
@@ -23,7 +23,13 @@ async fn main() {
     })
     .expect("Error setting Ctrl-C handler");
     dotenv::dotenv().ok();
-    let bot = Bot::from_env().auto_send();
+    let bot = if std::env::var("TELOXIDE_TOKEN").is_ok() {
+        Some(Bot::from_env().auto_send())
+    } else {
+        warn!("TELOXIDE_TOKEN variable is not set, if you need Telegram bot to send messages, please set this variable as your telegram bot token");
+        None
+    };
+    // let bot = Bot::from_env().auto_send();
     let mut args = vec![];
     for i in &["AILURUS_DYNAMIC", "AILURUS_LIVE"] {
         if let Ok(id) = std::env::var(i) {
@@ -45,7 +51,7 @@ async fn main() {
     }
     match init().await {
         Ok((con, resp_client)) => {
-            tasker(&con, &resp_client, &bot, dynamic_id, live_id).await;
+            tasker(&con, &resp_client, bot.as_ref(), dynamic_id, live_id).await;
         }
         Err(e) => {
             error_and_exit!(e);
@@ -67,7 +73,7 @@ async fn init() -> Result<(MultiplexedConnection, reqwest::Client)> {
 async fn tasker(
     con: &MultiplexedConnection,
     resp_client: &reqwest::Client,
-    bot: &AutoSend<Bot>,
+    bot: Option<&AutoSend<Bot>>,
     dynamic_id: Option<u64>,
     live_id: Option<u64>,
 ) {
