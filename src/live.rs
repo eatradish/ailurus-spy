@@ -1,8 +1,8 @@
 use anyhow::Result;
 use dashmap::DashMap;
+use lazy_static::lazy_static;
 use reqwest::{header::HeaderMap, Client};
 use serde::Deserialize;
-use lazy_static::lazy_static;
 
 #[derive(Debug, Deserialize)]
 struct LiveRoomInit {
@@ -100,7 +100,7 @@ async fn get_room_id_from_short(room_id: u64, client: &Client) -> Result<u64> {
     let key = format!("short-id-{}", room_id);
     let room_id = if room_id < 10000 {
         if let Some(v) = SHORT_ID_MAP.get(&key) {
-            return Ok(*v)
+            return Ok(*v);
         }
         let mut header_map = HeaderMap::new();
         header_map.insert(
