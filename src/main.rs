@@ -29,7 +29,6 @@ async fn main() {
         warn!("TELOXIDE_TOKEN variable is not set, if you need Telegram bot to send messages, please set this variable as your telegram bot token");
         None
     };
-    // let bot = Bot::from_env().auto_send();
     let mut args = vec![];
     for i in &["AILURUS_DYNAMIC", "AILURUS_LIVE"] {
         if let Ok(id) = std::env::var(i) {
