@@ -45,6 +45,7 @@ struct CardInner {
     title: Option<String>,
     short_link: Option<String>,
     short_link_v2: Option<String>,
+    pic: Option<String>,
     origin: Option<String>,
     origin_dese: Box<Option<CardInner>>,
 }
@@ -142,6 +143,8 @@ fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
     let time = desc.timestamp;
     let picture = if let Some(pics) = item_clone_2.and_then(|x| x.pictures) {
         Some(pics)
+    } else if let Some(pic) = c.pic {
+        Some(vec![Picture { img_src: Some(pic) }])
     } else {
         c.origin_dese.and_then(|x| x.item.and_then(|x| x.pictures))
     };
