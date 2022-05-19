@@ -107,7 +107,7 @@ fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
             .clone()
             .and_then(|x| x.item.and_then(|x| x.description))
         {
-            if let Some(origin_user) = c.origin_user.and_then(|x| Some(x.info.uname)) {
+            if let Some(origin_user) = c.origin_user.map(|x| x.info.uname) {
                 Some(format!("{} // {}: {}", content, origin_user, origin_desc))
             } else {
                 Some(format!("{} // {}", content, origin_desc))
