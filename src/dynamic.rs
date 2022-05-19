@@ -134,9 +134,9 @@ fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
                 "{}\n{}",
                 x,
                 if let Some(url) = c.short_link_v2 {
-                    format!("{}", url)
+                    url
                 } else if let Some(url) = c.short_link {
-                    format!("{}", url)
+                    url
                 } else {
                     "".to_string()
                 }
