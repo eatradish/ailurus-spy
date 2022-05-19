@@ -168,7 +168,7 @@ pub async fn get_ailurus_dynamic(uid: u64, client: &Client) -> Result<Vec<BiliDy
     let mut result = vec![];
     let mut headers = HeaderMap::new();
     headers.append(
-        "Referred",
+        "Referer",
         (format!("https://space.bilibili.com/{}", uid)).parse()?,
     );
     let mut r = client
