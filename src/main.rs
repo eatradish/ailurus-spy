@@ -18,6 +18,10 @@ macro_rules! error_and_exit {
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
+    ctrlc::set_handler(|| {
+        error_and_exit!("吃我一拳！！！");
+    })
+    .expect("Error setting Ctrl-C handler");
     dotenv::dotenv().ok();
     let bot = Bot::from_env().auto_send();
     let mut args = vec![];
@@ -39,7 +43,6 @@ async fn main() {
             "Plaset set AILURUS_DYNAMIC to check dynamic or set AILURUS_LIVE to check live status!"
         );
     }
-
     match init().await {
         Ok((con, resp_client)) => {
             tasker(&con, &resp_client, &bot, dynamic_id, live_id).await;
