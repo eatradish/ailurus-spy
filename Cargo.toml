@@ -17,3 +17,5 @@ redis = { version = "0.21", features = ["tokio-comp"] }
 teloxide = { version = "0.9", features = ["macros", "auto-send"] }
 dotenv = "0.15"
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
+dashmap = "5.3"
+lazy_static = "1.4"

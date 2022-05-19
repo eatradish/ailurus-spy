@@ -1,6 +1,8 @@
 use anyhow::Result;
+use dashmap::DashMap;
 use reqwest::{header::HeaderMap, Client};
 use serde::Deserialize;
+use lazy_static::lazy_static;
 
 #[derive(Debug, Deserialize)]
 struct LiveRoomInit {
@@ -52,6 +54,10 @@ pub struct LiveStatusResult {
     pub user_cover: String,
 }
 
+lazy_static! {
+    static ref SHORT_ID_MAP: DashMap<String, u64> = DashMap::new();
+}
+
 pub async fn get_live_status(room_id: u64, client: &Client) -> Result<LiveStatusResult> {
     let room_id = get_room_id_from_short(room_id, client).await?;
     let mut header_map = HeaderMap::new();
@@ -91,7 +97,11 @@ pub async fn get_live_status(room_id: u64, client: &Client) -> Result<LiveStatus
 }
 
 async fn get_room_id_from_short(room_id: u64, client: &Client) -> Result<u64> {
+    let key = format!("short-id-{}", room_id);
     let room_id = if room_id < 10000 {
+        if let Some(v) = SHORT_ID_MAP.get(&key) {
+            return Ok(*v)
+        }
         let mut header_map = HeaderMap::new();
         header_map.insert(
             "Referer",
@@ -108,6 +118,7 @@ async fn get_room_id_from_short(room_id: u64, client: &Client) -> Result<u64> {
             .error_for_status()?
             .json::<LiveRoomInit>()
             .await?;
+        SHORT_ID_MAP.insert(key, r.data.room_id);
 
         r.data.room_id
     } else {
