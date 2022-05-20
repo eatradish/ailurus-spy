@@ -1,6 +1,8 @@
 # ailurus-spy
 小熊貓監視器！ - A bilibili dynamic and live status checker written in rust!
 
+[Telegram channel](https://t.me/ailuluailurus)
+
 ## To-Do!
 - [x] 直播检查器
 - [x] 动态检查器
