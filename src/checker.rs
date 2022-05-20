@@ -28,9 +28,11 @@ pub async fn check_dynamic_update(
         info!("Creating new spy {}...", &key);
         con.set(&key, dynamic[0].timestamp).await?;
     }
+    let mut is_update = false;
     if let Ok(t) = v {
-        for i in dynamic {
+        for i in &dynamic {
             if i.timestamp > t {
+                is_update = true;
                 let name = if let Some(name) = i.user.clone() {
                     name
                 } else {
@@ -70,9 +72,11 @@ pub async fn check_dynamic_update(
                             .await?;
                     }
                 }
-                info!("Update {} timestamp", key);
-                con.set(&key, i.timestamp).await?;
             }
+        }
+        if is_update {
+            info!("Update {} timestamp", key);
+            con.set(&key, dynamic[0].timestamp).await?;
         }
     } else {
         error!("{}", v.unwrap_err());
