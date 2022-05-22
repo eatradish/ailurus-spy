@@ -108,7 +108,7 @@ pub async fn check_live_status(
                 live.uname,
                 date,
                 live.title,
-                format_args!("https://live.billibili.com/{}", live.room_id)
+                format_args!("https://live.bilibili.com/{}", live.room_id)
             );
             info!("{}", s);
             if let Some(bot) = bot {
