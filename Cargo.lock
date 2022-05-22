@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "ailurus-spy"
-version = "0.1.4"
+version = "0.1.5-alpha.0"
 dependencies = [
  "anyhow",
  "ctrlc",
