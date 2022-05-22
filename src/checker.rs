@@ -62,8 +62,11 @@ pub async fn check_dynamic_update(
                         }
                     }
                     if let Some(bot) = bot {
-                        bot.send_media_group(Recipient::Id(ChatId(-1001675012012)), group)
+                        bot.send_media_group(Recipient::Id(ChatId(-1001675012012)), group.clone())
                             .await?;
+                        if group.len() > 8 {
+                            bot.send_message(Recipient::Id(ChatId(-1001675012012)), s).await?;
+                        }
                     }
                 } else {
                     if let Some(bot) = bot {
