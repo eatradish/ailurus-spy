@@ -67,6 +67,7 @@ pub async fn check_dynamic_update(
                             .await?;
                         if group_len > 8 {
                             bot.send_message(Recipient::Id(ChatId(-1001675012012)), s)
+                                .parse_mode(ParseMode::Html)
                                 .await?;
                         }
                     }
