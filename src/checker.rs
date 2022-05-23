@@ -31,7 +31,10 @@ pub async fn check_dynamic_update(
     let updated_id: Option<u64> = con.get(&key2).await.ok();
     if let Ok(t) = v {
         for i in &dynamic {
-            if i.timestamp > t && (updated_id.is_none() || updated_id != Some(i.dynamic_id)) {
+            if updated_id == Some(i.dynamic_id) {
+                break;
+            }
+            if i.timestamp > t  {
                 is_update = true;
                 let name = if let Some(name) = i.user.clone() {
                     name
