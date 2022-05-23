@@ -14,6 +14,33 @@ pub struct TelegramSend {
     pub photo: Option<String>,
 }
 
+macro_rules! send_msg {
+    ($bot:ident, $chat_id:ident, $msg:expr) => {
+        $bot.send_message(Recipient::Id(ChatId($chat_id)), &$msg)
+            .parse_mode(ParseMode::Html)
+            .await?;
+    };
+}
+
+macro_rules! send_photo {
+    ($bot:ident, $chat_id:ident, $photo:ident, $msg:expr) => {
+        $bot.send_photo(
+            Recipient::Id(ChatId($chat_id)),
+            InputFile::url(Url::parse($photo)?),
+        )
+        .caption(&$msg)
+        .parse_mode(ParseMode::Html)
+        .await
+    };
+}
+
+macro_rules! send_group {
+    ($bot:ident, $chat_id:ident, $groups:ident) => {
+        $bot.send_media_group(Recipient::Id(ChatId($chat_id)), $groups)
+            .await
+    };
+}
+
 pub async fn send(
     telegram_sends: &mut [TelegramSend],
     bot: &AutoSend<Bot>,
@@ -22,13 +49,9 @@ pub async fn send(
     telegram_sends.reverse();
     for i in telegram_sends {
         if let Some(photo) = &i.photo {
-            bot.send_photo(
-                Recipient::Id(ChatId(chat_id)),
-                InputFile::url(Url::parse(photo)?),
-            )
-            .caption(&i.msg)
-            .parse_mode(ParseMode::Html)
-            .await?;
+            if send_photo!(bot, chat_id, photo, i.msg).is_err() {
+                send_msg!(bot, chat_id, i.msg);
+            }
         } else if let Some(photos) = &i.photos {
             let mut groups = vec![];
             for j in photos {
@@ -39,17 +62,16 @@ pub async fn send(
                     caption_entities: None,
                 }));
             }
-            bot.send_media_group(Recipient::Id(ChatId(chat_id)), groups)
-                .await?;
+            if send_group!(bot, chat_id, groups).is_err() {
+                send_msg!(bot, chat_id, i.msg);
+
+                return Ok(());
+            }
             if photos.len() > 8 {
-                bot.send_message(Recipient::Id(ChatId(chat_id)), &i.msg)
-                    .parse_mode(ParseMode::Html)
-                    .await?;
+                send_msg!(bot, chat_id, i.msg);
             }
         } else {
-            bot.send_message(Recipient::Id(ChatId(chat_id)), &i.msg)
-                .parse_mode(ParseMode::Html)
-                .await?;
+            send_msg!(bot, chat_id, i.msg);
         }
     }
 
