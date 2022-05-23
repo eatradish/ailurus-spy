@@ -7,6 +7,7 @@ use tracing::{error, info, warn};
 mod checker;
 mod dynamic;
 mod live;
+mod sender;
 
 macro_rules! error_and_exit {
     ($e:expr) => {

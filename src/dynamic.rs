@@ -76,7 +76,7 @@ pub struct BiliDynamicResult {
     pub uid: Option<u64>,
     pub description: Option<String>,
     pub picture: Option<Vec<Picture>>,
-    pub url: String,
+    pub dynamic_id: u64,
     pub timestamp: u64,
 }
 
@@ -144,7 +144,6 @@ fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
         })
     };
     let dynamic_id = desc.dynamic_id;
-    let url = format!("https://t.bilibili.com/{}", dynamic_id);
     let time = desc.timestamp;
     let picture = if let Some(pics) = item_clone_2.and_then(|x| x.pictures) {
         Some(pics)
@@ -159,7 +158,7 @@ fn trans(c: CardInner, desc: Desc) -> BiliDynamicResult {
         uid,
         description,
         picture,
-        url,
+        dynamic_id,
         timestamp: time,
     }
 }
@@ -215,5 +214,5 @@ pub async fn get_ailurus_dynamic(uid: u64, client: &Client) -> Result<Vec<BiliDy
 async fn test() {
     let client = Client::new();
     let json = get_ailurus_dynamic(1501380958, &client).await.unwrap();
-    dbg!(json[0].to_owned());
+    dbg!(json[1].to_owned());
 }

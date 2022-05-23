@@ -1,17 +1,14 @@
 use anyhow::{anyhow, Result};
 use redis::{aio::MultiplexedConnection, AsyncCommands};
-use reqwest::{Client, Url};
-use teloxide::{
-    adaptors::AutoSend,
-    payloads::{SendMessageSetters, SendPhotoSetters},
-    prelude::Requester,
-    types::{ChatId, InputFile, InputMedia, InputMediaPhoto, ParseMode, Recipient},
-    Bot,
-};
+use reqwest::Client;
+use teloxide::{adaptors::AutoSend, Bot};
 use time::{format_description, macros::offset, OffsetDateTime};
 use tracing::{error, info};
 
-use crate::{dynamic, live};
+use crate::{
+    dynamic, live,
+    sender::{self, TelegramSend},
+};
 
 pub async fn check_dynamic_update(
     con: &MultiplexedConnection,
@@ -22,6 +19,7 @@ pub async fn check_dynamic_update(
     let mut con = con.clone();
     info!("checking {} dynamic update ...", uid);
     let key = format!("dynamic-{}", uid);
+    let key2 = format!("dynamic-{}-updated-id", uid);
     let dynamic = dynamic::get_ailurus_dynamic(uid, client).await?;
     let v: Result<u64> = con.get(&key).await.map_err(|e| anyhow!("{}", e));
     if v.is_err() {
@@ -29,9 +27,11 @@ pub async fn check_dynamic_update(
         con.set(&key, dynamic[0].timestamp).await?;
     }
     let mut is_update = false;
+    let mut telegram_send = vec![];
+    let updated_id: Option<u64> = con.get(&key2).await.ok();
     if let Ok(t) = v {
         for i in &dynamic {
-            if i.timestamp > t {
+            if i.timestamp > t && (updated_id.is_none() || updated_id != Some(i.dynamic_id)) {
                 is_update = true;
                 let name = if let Some(name) = i.user.clone() {
                     name
@@ -45,39 +45,34 @@ pub async fn check_dynamic_update(
                 };
                 info!("用户 {} 有新动态！内容：{}", name, desc);
                 let date = timestamp_to_date(i.timestamp)?;
+                let url = format!("https://t.bilibili.com/{}", i.dynamic_id);
                 let s = format!(
                     "<b>{} 有新动态啦！</b>\n{}\n{}\n\n{}",
-                    name, date, desc, i.url
+                    name, date, desc, url
                 );
-                if let Some(picture) = &i.picture {
+                let group = if let Some(picture) = i.picture.clone() {
                     let mut group = Vec::new();
                     for i in picture {
-                        if let Some(img) = &i.img_src {
-                            group.push(InputMedia::Photo(InputMediaPhoto {
-                                media: InputFile::url(Url::parse(img)?),
-                                caption: Some(s.clone()),
-                                parse_mode: Some(ParseMode::Html),
-                                caption_entities: None,
-                            }));
+                        if let Some(img) = i.img_src {
+                            group.push(img);
                         }
                     }
-                    if let Some(bot) = bot {
-                        let group_len = group.len();
-                        bot.send_media_group(Recipient::Id(ChatId(-1001675012012)), group)
-                            .await?;
-                        if group_len > 8 {
-                            bot.send_message(Recipient::Id(ChatId(-1001675012012)), s)
-                                .parse_mode(ParseMode::Html)
-                                .await?;
-                        }
-                    }
-                } else if let Some(bot) = bot {
-                    bot.send_message(Recipient::Id(ChatId(-1001675012012)), s)
-                        .parse_mode(ParseMode::Html)
-                        .await?;
-                }
+                    Some(group)
+                } else {
+                    None
+                };
+                telegram_send.push(TelegramSend {
+                    msg: s,
+                    photos: group,
+                    photo: None,
+                });
+                con.set(&key2, i.dynamic_id).await?;
             }
         }
+        if let Some(bot) = bot {
+            sender::send(&mut telegram_send, bot, -1001675012012).await?;
+        }
+
         if is_update {
             info!("Update {} timestamp", key);
             con.set(&key, dynamic[0].timestamp).await?;
@@ -115,14 +110,13 @@ pub async fn check_live_status(
                 format_args!("https://live.bilibili.com/{}", live.room_id)
             );
             info!("{}", s);
+            let mut telegram_sends = vec![TelegramSend {
+                msg: s,
+                photos: None,
+                photo: Some(live.user_cover),
+            }];
             if let Some(bot) = bot {
-                bot.send_photo(
-                    Recipient::Id(ChatId(-1001675012012)),
-                    InputFile::url(Url::parse(&live.user_cover)?),
-                )
-                .caption(s)
-                .parse_mode(ParseMode::Html)
-                .await?;
+                sender::send(&mut telegram_sends, bot, -1001675012012).await?;
             }
             con.set(key, true).await?;
         } else if db_live_status && ls == 1 {
