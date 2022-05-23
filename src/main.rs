@@ -24,11 +24,15 @@ async fn main() {
     })
     .expect("Error setting Ctrl-C handler");
     dotenv::dotenv().ok();
-    let bot = if std::env::var("TELOXIDE_TOKEN").is_ok() {
-        Some(Bot::from_env().auto_send())
+    let (bot, chat_id) = if std::env::var("TELOXIDE_TOKEN").is_ok() {
+        if let Ok(v) = std::env::var("AILURUS_CHATID") {
+            (Some(Bot::from_env().auto_send()), Some(v))
+        } else {
+            error_and_exit!("TELOXIDE_TOKEN is set but AILURUS_CHATID not to set!");
+        }
     } else {
         warn!("TELOXIDE_TOKEN variable is not set, if you need Telegram bot to send messages, please set this variable as your telegram bot token");
-        None
+        (None, None)
     };
     let mut args = vec![];
     for i in &["AILURUS_DYNAMIC", "AILURUS_LIVE"] {
@@ -51,7 +55,15 @@ async fn main() {
     }
     match init().await {
         Ok((con, resp_client)) => {
-            tasker(&con, &resp_client, bot.as_ref(), dynamic_id, live_id).await;
+            tasker(
+                &con,
+                &resp_client,
+                bot.as_ref(),
+                dynamic_id,
+                live_id,
+                chat_id.and_then(|x| x.parse::<i64>().ok()),
+            )
+            .await;
         }
         Err(e) => {
             error_and_exit!(e);
@@ -76,13 +88,14 @@ async fn tasker(
     bot: Option<&AutoSend<Bot>>,
     dynamic_id: Option<u64>,
     live_id: Option<u64>,
+    telegram_chat_id: Option<i64>,
 ) {
     if let Some(dyn_id) = dynamic_id {
         if let Some(live_id) = live_id {
             loop {
                 if let Err(e) = tokio::try_join!(
-                    checker::check_dynamic_update(con, dyn_id, resp_client, bot),
-                    checker::check_live_status(con, live_id, resp_client, bot),
+                    checker::check_dynamic_update(con, dyn_id, resp_client, bot, telegram_chat_id),
+                    checker::check_live_status(con, live_id, resp_client, bot, telegram_chat_id),
                 ) {
                     error!("{}", e);
                 }
@@ -90,9 +103,13 @@ async fn tasker(
             }
         } else {
             loop {
-                if let Err(e) =
-                    tokio::try_join!(checker::check_dynamic_update(con, dyn_id, resp_client, bot))
-                {
+                if let Err(e) = tokio::try_join!(checker::check_dynamic_update(
+                    con,
+                    dyn_id,
+                    resp_client,
+                    bot,
+                    telegram_chat_id
+                )) {
                     error!("{}", e);
                 }
                 sleep(Duration::from_secs(180)).await;
@@ -100,9 +117,13 @@ async fn tasker(
         }
     } else if let Some(live_id) = live_id {
         loop {
-            if let Err(e) =
-                tokio::try_join!(checker::check_live_status(con, live_id, resp_client, bot))
-            {
+            if let Err(e) = tokio::try_join!(checker::check_live_status(
+                con,
+                live_id,
+                resp_client,
+                bot,
+                telegram_chat_id
+            )) {
                 error!("{}", e);
             }
             sleep(Duration::from_secs(180)).await;

@@ -37,6 +37,8 @@
     AILURUS_DYNAMIC="1501380958"
     # 订阅 B 站用户直播间的开播状态：
     AILURUS_LIVE="22746343"
+    # Telegram chat id (群组、频道、私聊)
+    AILURUS_CHATID="-1001675012012"
     ```
 
 4. 运行：

@@ -58,7 +58,7 @@ pub async fn send(
             let mut groups = vec![];
             for j in photos {
                 groups.push(InputMedia::Photo(InputMediaPhoto {
-                    media: InputFile::url(Url::parse(&j)?),
+                    media: InputFile::url(Url::parse(j)?),
                     caption: Some(i.msg.clone()),
                     parse_mode: Some(ParseMode::Html),
                     caption_entities: None,

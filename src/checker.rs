@@ -15,6 +15,7 @@ pub async fn check_dynamic_update(
     uid: u64,
     client: &Client,
     bot: Option<&AutoSend<Bot>>,
+    telegram_chat_id: Option<i64>,
 ) -> Result<()> {
     let mut con = con.clone();
     info!("checking {} dynamic update ...", uid);
@@ -27,14 +28,14 @@ pub async fn check_dynamic_update(
         con.set(&key, dynamic[0].timestamp).await?;
     }
     let mut is_update = false;
-    let mut telegram_send = vec![];
+    let mut telegram_sends = vec![];
     let updated_id: Option<u64> = con.get(&key2).await.ok();
     if let Ok(t) = v {
         for i in &dynamic {
             if updated_id == Some(i.dynamic_id) {
                 break;
             }
-            if i.timestamp > t  {
+            if i.timestamp > t {
                 is_update = true;
                 let name = if let Some(name) = i.user.clone() {
                     name
@@ -64,7 +65,7 @@ pub async fn check_dynamic_update(
                 } else {
                     None
                 };
-                telegram_send.push(TelegramSend {
+                telegram_sends.push(TelegramSend {
                     msg: s,
                     photos: group,
                     photo: None,
@@ -72,10 +73,7 @@ pub async fn check_dynamic_update(
                 con.set(&key2, i.dynamic_id).await?;
             }
         }
-        if let Some(bot) = bot {
-            sender::send(&mut telegram_send, bot, -1001675012012).await?;
-        }
-
+        check_and_send(bot, telegram_chat_id, telegram_sends).await?;
         if is_update {
             info!("Update {} timestamp", key);
             con.set(&key, dynamic[0].timestamp).await?;
@@ -92,6 +90,7 @@ pub async fn check_live_status(
     room_id: u64,
     client: &Client,
     bot: Option<&AutoSend<Bot>>,
+    telegram_chat_id: Option<i64>,
 ) -> Result<()> {
     let mut con = con.clone();
     info!("checking room {} live status update ...", room_id);
@@ -113,19 +112,31 @@ pub async fn check_live_status(
                 format_args!("https://live.bilibili.com/{}", live.room_id)
             );
             info!("{}", s);
-            let mut telegram_sends = vec![TelegramSend {
+            let telegram_sends = vec![TelegramSend {
                 msg: s,
                 photos: None,
                 photo: Some(live.user_cover),
             }];
-            if let Some(bot) = bot {
-                sender::send(&mut telegram_sends, bot, -1001675012012).await?;
-            }
+            check_and_send(bot, telegram_chat_id, telegram_sends).await?;
             con.set(key, true).await?;
         } else if db_live_status && ls == 1 {
             con.set(key, true).await?;
         } else if ls != 1 {
             con.set(key, false).await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn check_and_send(
+    bot: Option<&AutoSend<Bot>>,
+    telegram_chat_id: Option<i64>,
+    mut telegram_sends: Vec<TelegramSend>,
+) -> Result<()> {
+    if let Some(bot) = bot {
+        if let Some(chat_id) = telegram_chat_id {
+            sender::send(&mut telegram_sends, bot, chat_id).await?;
         }
     }
 
