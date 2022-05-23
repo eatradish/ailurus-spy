@@ -7,6 +7,7 @@ use teloxide::{
     types::{ChatId, InputFile, InputMedia, InputMediaPhoto, ParseMode, Recipient},
     Bot,
 };
+use tracing::warn;
 
 pub struct TelegramSend {
     pub msg: String,
@@ -49,7 +50,8 @@ pub async fn send(
     telegram_sends.reverse();
     for i in telegram_sends {
         if let Some(photo) = &i.photo {
-            if send_photo!(bot, chat_id, photo, i.msg).is_err() {
+            if let Err(e) = send_photo!(bot, chat_id, photo, i.msg) {
+                warn!("Telegram send photo has error! {}", e);
                 send_msg!(bot, chat_id, i.msg);
             }
         } else if let Some(photos) = &i.photos {
@@ -62,7 +64,8 @@ pub async fn send(
                     caption_entities: None,
                 }));
             }
-            if send_group!(bot, chat_id, groups).is_err() {
+            if let Err(e) = send_group!(bot, chat_id, groups) {
+                warn!("Telegram send group has error! {}", e);
                 send_msg!(bot, chat_id, i.msg);
 
                 return Ok(());
