@@ -70,7 +70,7 @@ pub async fn send(
 
                 return Ok(());
             }
-            if photos.len() > 8 {
+            if photos.len() > 1 {
                 send_msg!(bot, chat_id, i.msg);
             }
         } else {
