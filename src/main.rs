@@ -77,6 +77,7 @@ async fn init() -> Result<(MultiplexedConnection, reqwest::Client)> {
     let connect = redis_client.get_multiplexed_tokio_connection().await?;
     let resp_client = reqwest::ClientBuilder::new()
         .user_agent("User-Agent: Mozilla/5.0 (X11; AOSC OS; Linux x86_64; rv:98.0) Gecko/20100101 Firefox/98.0")
+        .timeout(Duration::from_secs(30))
         .build()?;
 
     Ok((connect, resp_client))

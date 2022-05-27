@@ -29,7 +29,6 @@ pub async fn check_dynamic_update(
     }
     let mut is_update = false;
     let mut telegram_sends = vec![];
-    let updated_id: Option<u64> = con.get(&key2).await.ok();
     if let Ok(t) = v {
         for i in &dynamic {
             if i.timestamp > t {
