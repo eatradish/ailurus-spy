@@ -69,7 +69,7 @@ pub async fn check_dynamic_update(
                 con.set(&key2, i.dynamic_id).await?;
             }
         }
-        check_and_send(bot, telegram_chat_id, telegram_sends).await?;
+        check_and_send(bot, telegram_chat_id, telegram_sends, client).await?;
         if is_update {
             info!("Update {} timestamp", key);
             con.set(&key, dynamic[0].timestamp).await?;
@@ -113,7 +113,7 @@ pub async fn check_live_status(
                 photos: None,
                 photo: Some(live.user_cover),
             }];
-            check_and_send(bot, telegram_chat_id, telegram_sends).await?;
+            check_and_send(bot, telegram_chat_id, telegram_sends, client).await?;
             con.set(key, true).await?;
         } else if db_live_status && ls == 1 {
             con.set(key, true).await?;
@@ -129,10 +129,11 @@ async fn check_and_send(
     bot: Option<&AutoSend<Bot>>,
     telegram_chat_id: Option<i64>,
     mut telegram_sends: Vec<TelegramSend>,
+    client: &Client,
 ) -> Result<()> {
     if let Some(bot) = bot {
         if let Some(chat_id) = telegram_chat_id {
-            sender::send(&mut telegram_sends, bot, chat_id).await?;
+            sender::send(&mut telegram_sends, bot, chat_id, client).await?;
         }
     }
 
