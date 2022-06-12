@@ -8,6 +8,7 @@ mod checker;
 mod dynamic;
 mod live;
 mod sender;
+mod weibo;
 
 macro_rules! error_and_exit {
     ($e:expr) => {
