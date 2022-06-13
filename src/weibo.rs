@@ -8,10 +8,10 @@ use std::{
 use anyhow::{anyhow, bail, Ok, Result};
 use cookie_store::CookieStore;
 use fancy_regex::Regex;
-use reqwest::{header::HeaderMap, Body, Client, Response};
+use reqwest::{header::HeaderMap, Client, Response, Url};
 use reqwest_cookie_store::CookieStoreMutex;
 use rustyline::Editor;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tracing::info;
 
 const SEND_SMS_URL: &str = "https://passport.weibo.cn/signin/secondverify/ajsend";
@@ -20,6 +20,12 @@ const LOGIN_URL: &str = "https://passport.sina.cn/sso/login";
 const SEND_PRIVATE_MSG_URL: &str = "https://passport.weibo.cn/signin/secondverify/index";
 // const WEIBO_HOME_URL: &str = "https://weibo.com";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.183 Safari/537.36";
+
+macro_rules! API_URL {
+    () => {
+        "https://m.weibo.cn/api/container/getIndex?uid={}&luicode=10000011&lfid=231093_-_selffollowed&type=uid&value={}&containerid={}"
+    };
+}
 
 #[derive(Debug, Deserialize)]
 struct LoginResponseResult {
@@ -66,13 +72,53 @@ struct VeriCheckData {
     url: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct WeiboIndex {
+    data: WeiboIndexData,
+}
+
+#[derive(Debug, Deserialize)]
+struct WeiboIndexData {
+    cards: Option<Vec<WeiboIndexDataCard>>,
+    #[serde(rename = "tabsInfo")]
+    tabs_info: WeiboIndexDataTabsInfo
+}
+
+#[derive(Debug, Deserialize)]
+struct WeiboIndexDataTabsInfo {
+    tabs: Vec<WeiboIndexDataTabsInfoTab>
+}
+
+#[derive(Debug, Deserialize)]
+struct WeiboIndexDataTabsInfoTab {
+    tab_type: String,
+    containerid: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct WeiboIndexDataCard {
+    cards_type: u64,
+    mblog: WeiboIndexDataCardMblog,
+}
+
+#[derive(Debug, Deserialize)]
+struct WeiboIndexDataCardMblog {
+    id: u64,
+    pics: Vec<WeiboIndexDataCardMblogPic>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WeiboIndexDataCardMblogPic {
+    url: String,
+}
+
 struct WeiboClient {
     client: Client,
     cookie_store: Arc<CookieStoreMutex>,
 }
 
 impl WeiboClient {
-    fn new() -> Result<Self> {
+    pub fn new() -> Result<Self> {
         let cookie_store = reqwest_cookie_store::CookieStoreMutex::new(CookieStore::default());
         let cookie_store = Arc::new(cookie_store);
         let cookie_store_clone = cookie_store.clone();
@@ -122,17 +168,10 @@ impl WeiboClient {
             .await?
             .error_for_status()?;
 
-        dbg!(&resp);
-
         Ok(resp)
     }
 
-    async fn login(&self, username: &str, password: &str) -> Result<()> {
-        let body = format!(
-            "username={}&password={}&savestate=1&ec=1&pagerefer=&entry=wapsso&sinacnlogin=1",
-            username, password
-        );
-
+    pub async fn login(&self, username: &str, password: &str) -> Result<()> {
         let body = &[
             ("username", username),
             ("password", password),
@@ -253,7 +292,7 @@ impl WeiboClient {
         Ok(json)
     }
 
-    async fn get_container_id(&self, profile_url: &str) -> Result<String> {
+    async fn get_container_id(&self, profile_url: &str) -> Result<(String, String)> {
         self.get(profile_url, None, None).await?;
         let store = self.cookie_store.lock().map_err(|e| anyhow!("{}", e))?;
         let regex = Regex::new(r"fid%3D(\d+)%26")?;
@@ -265,11 +304,48 @@ impl WeiboClient {
             }
         }
         let container_id = match_cookie.ok_or_else(|| anyhow!("Can not get container id!"))?;
+        let mut container_id = container_id.replace("fid%3D", "").replace("%26", "");
 
-        Ok(container_id.to_string())
+        let url = Url::parse(profile_url)?;
+        let query = url
+            .query()
+            .ok_or_else(|| anyhow!("Can not get url query!"))?;
+        let query_vec = query.split('&');
+        let mut uid = None;
+
+        for i in query_vec {
+            if i.starts_with("uid") {
+                uid = i.split('=').nth(1);
+                break;
+            }
+        }
+
+        let uid = uid.ok_or_else(|| anyhow!("Can not get uid!"))?.to_string();
+        let api_url = format!(API_URL!(), uid, uid, container_id);
+        
+
+        let resp = self.get(&api_url , None, None).await?;
+        let json = resp.json::<WeiboIndex>().await?;
+
+        let tabs = json.data.tabs_info.tabs;
+
+        for i in tabs {
+            if i.tab_type == "weibo" {
+                container_id = i.containerid;
+            }
+        }
+
+        Ok((container_id, uid))
     }
 
-    async fn get_ailurus(&self, profile_url: &str) -> Result<()> {
+    pub async fn get_ailurus(&self, profile_url: &str) -> Result<()> {
+        let (container_id, uid) = self.get_container_id(profile_url).await?;
+
+        dbg!(&uid, &container_id);
+        let api_url = format!(API_URL!(), uid, uid, container_id);
+        let resp = self.get(&api_url, None, None).await?;
+        dbg!(resp.text().await?);
+
         todo!()
     }
 }
