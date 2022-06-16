@@ -56,6 +56,12 @@ async fn main() {
         } else {
             None
         }
+    } else if std::env::var("AILURUS_PROFILE_URL").is_ok()
+        && std::env::var("AILURUS_CONTAINER_ID").is_ok()
+    {
+        let weibo = weibo::WeiboClient::new();
+
+        weibo.ok()
     } else {
         None
     };
