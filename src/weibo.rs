@@ -81,12 +81,12 @@ struct WeiboIndex {
 struct WeiboIndexData {
     cards: Option<Vec<WeiboIndexDataCard>>,
     #[serde(rename = "tabsInfo")]
-    tabs_info: WeiboIndexDataTabsInfo
+    tabs_info: Option<WeiboIndexDataTabsInfo>,
 }
 
 #[derive(Debug, Deserialize)]
 struct WeiboIndexDataTabsInfo {
-    tabs: Vec<WeiboIndexDataTabsInfoTab>
+    tabs: Vec<WeiboIndexDataTabsInfoTab>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -97,14 +97,15 @@ struct WeiboIndexDataTabsInfoTab {
 
 #[derive(Debug, Deserialize)]
 struct WeiboIndexDataCard {
-    cards_type: u64,
+    cards_type: Option<u64>,
     mblog: WeiboIndexDataCardMblog,
 }
 
 #[derive(Debug, Deserialize)]
 struct WeiboIndexDataCardMblog {
-    id: u64,
-    pics: Vec<WeiboIndexDataCardMblogPic>,
+    id: String,
+    pics: Option<Vec<WeiboIndexDataCardMblogPic>>,
+    text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -128,6 +129,7 @@ impl WeiboClient {
                 .cookie_store(true)
                 .cookie_provider(cookie_store)
                 .user_agent(USER_AGENT)
+                .timeout(Duration::from_secs(30))
                 .build()?,
             cookie_store: cookie_store_clone,
         })
@@ -218,27 +220,28 @@ impl WeiboClient {
     async fn verification(&self, verif_url: &str) -> Result<String> {
         let resp = self.get(verif_url, None, None).await?;
         let text = resp.text().await?;
-        let json = self.send_verif(&text, None).await?;
+        // let json = self.send_verif(&text, None).await?;
         let mut num_times = 0;
-        let mut msg_type = "sms";
+        // let mut msg_type = "sms";
+        let mut msg_type = "private_msg";
 
         let mut s =
             "You have to secondverify your account, please input the sms code your phone received: ";
 
-        while json.retcode != 100000 {
-            num_times += 1;
-            if num_times > 1 {
-                bail!("{}", json.msg)
-            }
-            if json.retcode == 8513 {
-                s = "You have to secondverify your account, please input the verification code in your private message: ";
-                msg_type = "private_msg";
-                self.send_verif(&text, Some(msg_type)).await?;
-                break;
-            } else {
-                bail!("{}", json.msg)
-            }
-        }
+        // while json.retcode != 100000 {
+        //     num_times += 1;
+        //     if num_times > 1 {
+        //         bail!("{}", json.msg)
+        //     }
+        //     if json.retcode == 8513 {
+        //         s = "You have to secondverify your account, please input the verification code in your private message: ";
+        //         msg_type = "private_msg";
+        //         self.send_verif(&text, Some(msg_type)).await?;
+        //         break;
+        //     } else {
+        //         bail!("{}", json.msg)
+        //     }
+        // }
 
         let mut reader = Editor::<()>::new();
         let code = reader.readline(s)?;
@@ -267,13 +270,16 @@ impl WeiboClient {
                 .find(&text)?
                 .ok_or_else(|| anyhow!("Can not get phone list!"))?
                 .as_str();
+
             let phone_list = phone_list
                 .split_once("('")
                 .map(|x| x.1)
                 .and_then(|x| x.split_once("')"))
                 .map(|x| x.0)
                 .ok_or_else(|| anyhow!("Can not split phone list!"))?;
+
             let json: Vec<PhoneList> = serde_json::from_str(phone_list)?;
+
             query.push(("number".to_string(), format!("{}", json[0].number)));
             query.push(("mask_mobile".to_string(), json[0].mask_mobile.clone()));
         } else {
@@ -292,42 +298,46 @@ impl WeiboClient {
         Ok(json)
     }
 
-    async fn get_container_id(&self, profile_url: &str) -> Result<(String, String)> {
+    async fn get_container_id(
+        &self,
+        profile_url: &str,
+        uid: Option<&str>,
+    ) -> Result<(String, String)> {
+        dbg!("container id");
         self.get(profile_url, None, None).await?;
+
         let store = self.cookie_store.lock().map_err(|e| anyhow!("{}", e))?;
         let regex = Regex::new(r"fid%3D(\d+)%26")?;
         let mut match_cookie = None;
+
         for c in store.iter_any() {
             if let Some(v) = regex.find(c.value())? {
                 match_cookie = Some(v.as_str());
                 break;
             }
         }
+
         let container_id = match_cookie.ok_or_else(|| anyhow!("Can not get container id!"))?;
         let mut container_id = container_id.replace("fid%3D", "").replace("%26", "");
 
-        let url = Url::parse(profile_url)?;
-        let query = url
-            .query()
-            .ok_or_else(|| anyhow!("Can not get url query!"))?;
-        let query_vec = query.split('&');
-        let mut uid = None;
+        dbg!(&container_id);
 
-        for i in query_vec {
-            if i.starts_with("uid") {
-                uid = i.split('=').nth(1);
-                break;
-            }
-        }
+        let uid = if let Some(uid) = uid {
+            uid.to_string()
+        } else {
+            get_uid(profile_url)?
+        };
 
-        let uid = uid.ok_or_else(|| anyhow!("Can not get uid!"))?.to_string();
         let api_url = format!(API_URL!(), uid, uid, container_id);
-        
 
-        let resp = self.get(&api_url , None, None).await?;
+        let resp = self.get(&api_url, None, None).await?;
         let json = resp.json::<WeiboIndex>().await?;
 
-        let tabs = json.data.tabs_info.tabs;
+        let tabs = json
+            .data
+            .tabs_info
+            .ok_or_else(|| anyhow!("Can not get weibo index tabs field!"))?
+            .tabs;
 
         for i in tabs {
             if i.tab_type == "weibo" {
@@ -338,25 +348,53 @@ impl WeiboClient {
         Ok((container_id, uid))
     }
 
-    pub async fn get_ailurus(&self, profile_url: &str) -> Result<()> {
-        let (container_id, uid) = self.get_container_id(profile_url).await?;
+    pub async fn get_ailurus(
+        &self,
+        profile_url: &str,
+        container_id: Option<String>,
+    ) -> Result<WeiboIndex> {
+        let (container_id, uid) = if container_id.is_none() {
+            self.get_container_id(profile_url, None).await?
+        } else {
+            (container_id.unwrap(), get_uid(profile_url)?)
+        };
 
-        dbg!(&uid, &container_id);
         let api_url = format!(API_URL!(), uid, uid, container_id);
         let resp = self.get(&api_url, None, None).await?;
-        dbg!(resp.text().await?);
+        let json = resp.text().await?;
+        let json: WeiboIndex = serde_json::from_str(&json)?;
 
-        todo!()
+        Ok(json)
     }
 }
 
-fn ready_parse_weibo_json(weibo_json: &str) -> Result<&str> {
-    let json = weibo_json
-        .split_once('(')
-        .map(|x| x.1)
-        .and_then(|x| x.split_once(')'))
-        .ok_or_else(|| anyhow!("Can not get qrcode right JSON"))?
-        .0;
+fn get_uid(profile_url: &str) -> Result<String> {
+    let url = Url::parse(profile_url)?;
+    let query = url
+        .query()
+        .ok_or_else(|| anyhow!("Can not get url query!"))?;
+    let query_vec = query.split('&');
+    let mut uid = None;
+    for i in query_vec {
+        if i.starts_with("uid") {
+            uid = i.split('=').nth(1);
+            break;
+        }
+    }
+    Ok(uid.ok_or_else(|| anyhow!("Can not get uid!"))?.to_string())
+}
 
-    Ok(json)
+#[tokio::test]
+async fn test() {
+    let weibo = WeiboClient::new().unwrap();
+
+    let ailurus = weibo
+        .get_ailurus(
+            "https://m.weibo.cn/u/7756532294?uid=7756532294",
+            Some("1076037756532294".to_string()),
+        )
+        .await
+        .unwrap();
+
+    dbg!(ailurus);
 }
