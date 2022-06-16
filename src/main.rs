@@ -51,7 +51,7 @@ async fn main() {
         );
     }
 
-    match init().await {
+    match init_redis_and_network_client().await {
         Ok((con, resp_client)) => {
             let task_args = TaskArgs {
                 con: &con,
@@ -145,7 +145,7 @@ fn init_tgbot() -> (Option<AutoSend<Bot>>, Option<String>) {
     (bot, chat_id)
 }
 
-async fn init() -> Result<(MultiplexedConnection, reqwest::Client)> {
+async fn init_redis_and_network_client() -> Result<(MultiplexedConnection, reqwest::Client)> {
     info!("Connecting redis://127.0.0.1 ...");
     let redis_client = redis::Client::open("redis://127.0.0.1/")?;
     let connect = redis_client.get_multiplexed_tokio_connection().await?;
@@ -200,7 +200,7 @@ async fn tasker(task_args: TaskArgs<'_>) {
             tasks.push(check_weibo);
         }
 
-        if let Err(e) = tokio::try_join!(futures::future::try_join_all(tasks)) {
+        if let Err(e) = futures::future::try_join_all(tasks).await {
             error!("{}", e.to_string());
         }
 
