@@ -8,10 +8,11 @@ use tracing::{error, info};
 use crate::{
     dynamic, live,
     sender::{self, TelegramSend},
+    weibo::WeiboClient,
 };
 
 pub async fn check_dynamic_update(
-    con: &MultiplexedConnection,
+    con: MultiplexedConnection,
     uid: u64,
     client: &Client,
     bot: Option<&AutoSend<Bot>>,
@@ -82,7 +83,7 @@ pub async fn check_dynamic_update(
 }
 
 pub async fn check_live_status(
-    con: &MultiplexedConnection,
+    con: MultiplexedConnection,
     room_id: u64,
     client: &Client,
     bot: Option<&AutoSend<Bot>>,
@@ -120,6 +121,70 @@ pub async fn check_live_status(
         } else if ls != 1 {
             con.set(key, false).await?;
         }
+    }
+
+    Ok(())
+}
+
+pub async fn check_weibo(
+    con: MultiplexedConnection,
+    bot: Option<&AutoSend<Bot>>,
+    weibo: WeiboClient,
+    profile_url: String,
+    container_id: Option<String>,
+    client: &Client,
+    telegram_chat_id: Option<i64>,
+) -> Result<()> {
+    info!("Checking {} weibo ...", profile_url);
+    let mut con = con.clone();
+
+    let key = format!("weibo-{}", profile_url);
+    let v: Result<String> = con.get(&key).await.map_err(|e| anyhow!("{}", e));
+
+    let ailurus = weibo.get_ailurus(&profile_url, container_id).await?;
+    let data = ailurus
+        .data
+        .cards
+        .ok_or_else(|| anyhow!("Can not get weibo index!"))?;
+
+    if v.is_err() {
+        con.set(&key, &data[0].mblog.created_at).await?;
+    }
+
+    if let Ok(v) = v {
+        let old_created_at_index = data.iter().position(|x| x.mblog.created_at == v);
+        if old_created_at_index.is_none() {
+            con.set(&key, &data[0].mblog.created_at).await?;
+        }
+
+        let old_created_at_index = old_created_at_index.unwrap_or(0);
+
+        let mut telegram_sends = vec![];
+        for (i, c) in data.iter().enumerate() {
+            if i < old_created_at_index {
+                let username = c.mblog.user.screen_name.clone();
+                let s = format!(
+                    "<b>{} 发新微博啦！<b>\n{}\n\n{}",
+                    username, c.mblog.created_at, c.mblog.text
+                );
+
+                info!("{}", s);
+
+                let photos = c
+                    .mblog
+                    .pics
+                    .as_ref()
+                    .map(|x| x.into_iter().map(|x| x.url.clone()).collect::<Vec<_>>());
+
+                telegram_sends.push(TelegramSend {
+                    msg: s,
+                    photos,
+                    photo: None,
+                });
+            }
+        }
+
+        check_and_send(bot, telegram_chat_id, telegram_sends, client).await?;
     }
 
     Ok(())

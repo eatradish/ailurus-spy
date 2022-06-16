@@ -33,6 +33,7 @@ dependencies = [
  "dashmap",
  "dotenv",
  "fancy-regex",
+ "futures",
  "image",
  "lazy_static",
  "redis",

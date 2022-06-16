@@ -25,3 +25,5 @@ reqwest_cookie_store = "0.3"
 cookie_store = "0.16"
 fancy-regex = "0.10"
 rustyline = "9.1"
+futures = "0.3"
+

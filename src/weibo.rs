@@ -1,9 +1,4 @@
-use std::{
-    collections::HashMap,
-    hash::Hash,
-    sync::Arc,
-    time::{Duration, SystemTime},
-};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::{anyhow, bail, Ok, Result};
 use cookie_store::CookieStore;
@@ -36,15 +31,7 @@ struct LoginResponseResult {
 
 #[derive(Debug, Deserialize)]
 struct LoginResponseResultData {
-    username: Option<String>,
     errurl: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ReadyLogin {
-    nick: String,
-    #[serde(rename = "crossDomainUrlList")]
-    cross_domain_url_list: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -73,47 +60,55 @@ struct VeriCheckData {
 }
 
 #[derive(Debug, Deserialize)]
-struct WeiboIndex {
-    data: WeiboIndexData,
+pub struct WeiboIndex {
+    pub data: WeiboIndexData,
 }
 
 #[derive(Debug, Deserialize)]
-struct WeiboIndexData {
-    cards: Option<Vec<WeiboIndexDataCard>>,
+pub struct WeiboIndexData {
+    pub cards: Option<Vec<WeiboIndexDataCard>>,
     #[serde(rename = "tabsInfo")]
-    tabs_info: Option<WeiboIndexDataTabsInfo>,
+    pub tabs_info: Option<WeiboIndexDataTabsInfo>,
 }
 
 #[derive(Debug, Deserialize)]
-struct WeiboIndexDataTabsInfo {
-    tabs: Vec<WeiboIndexDataTabsInfoTab>,
+pub struct WeiboIndexDataTabsInfo {
+    pub tabs: Vec<WeiboIndexDataTabsInfoTab>,
 }
 
 #[derive(Debug, Deserialize)]
-struct WeiboIndexDataTabsInfoTab {
-    tab_type: String,
-    containerid: String,
+pub struct WeiboIndexDataTabsInfoTab {
+    pub tab_type: String,
+    pub containerid: String,
 }
 
 #[derive(Debug, Deserialize)]
-struct WeiboIndexDataCard {
-    cards_type: Option<u64>,
-    mblog: WeiboIndexDataCardMblog,
+pub struct WeiboIndexDataCard {
+    pub cards_type: Option<u64>,
+    pub mblog: WeiboIndexDataCardMblog,
 }
 
 #[derive(Debug, Deserialize)]
-struct WeiboIndexDataCardMblog {
-    id: String,
-    pics: Option<Vec<WeiboIndexDataCardMblogPic>>,
-    text: Option<String>,
+pub struct WeiboIndexDataCardMblog {
+    pub id: String,
+    pub user: WeiboIndexDataCardMblogUser,
+    pub created_at: String,
+    pub pics: Option<Vec<WeiboIndexDataCardMblogPic>>,
+    pub text: String,
 }
 
 #[derive(Debug, Deserialize)]
-struct WeiboIndexDataCardMblogPic {
-    url: String,
+pub struct WeiboIndexDataCardMblogUser {
+    pub screen_name: String,
 }
 
-struct WeiboClient {
+#[derive(Debug, Deserialize)]
+pub struct WeiboIndexDataCardMblogPic {
+    pub url: String,
+}
+
+#[derive(Clone)]
+pub struct WeiboClient {
     client: Client,
     cookie_store: Arc<CookieStoreMutex>,
 }
@@ -220,28 +215,28 @@ impl WeiboClient {
     async fn verification(&self, verif_url: &str) -> Result<String> {
         let resp = self.get(verif_url, None, None).await?;
         let text = resp.text().await?;
-        // let json = self.send_verif(&text, None).await?;
+        let json = self.send_verif(&text, None).await?;
         let mut num_times = 0;
-        // let mut msg_type = "sms";
-        let mut msg_type = "private_msg";
+        let mut msg_type = "sms";
+        // let mut msg_type = "private_msg";
 
         let mut s =
             "You have to secondverify your account, please input the sms code your phone received: ";
 
-        // while json.retcode != 100000 {
-        //     num_times += 1;
-        //     if num_times > 1 {
-        //         bail!("{}", json.msg)
-        //     }
-        //     if json.retcode == 8513 {
-        //         s = "You have to secondverify your account, please input the verification code in your private message: ";
-        //         msg_type = "private_msg";
-        //         self.send_verif(&text, Some(msg_type)).await?;
-        //         break;
-        //     } else {
-        //         bail!("{}", json.msg)
-        //     }
-        // }
+        while json.retcode != 100000 {
+            num_times += 1;
+            if num_times > 1 {
+                bail!("{}", json.msg)
+            }
+            if json.retcode == 8513 {
+                s = "You have to secondverify your account, please input the verification code in your private message: ";
+                msg_type = "private_msg";
+                self.send_verif(&text, Some(msg_type)).await?;
+                break;
+            } else {
+                bail!("{}", json.msg)
+            }
+        }
 
         let mut reader = Editor::<()>::new();
         let code = reader.readline(s)?;
@@ -306,21 +301,22 @@ impl WeiboClient {
         dbg!("container id");
         self.get(profile_url, None, None).await?;
 
-        let store = self.cookie_store.lock().map_err(|e| anyhow!("{}", e))?;
-        let regex = Regex::new(r"fid%3D(\d+)%26")?;
-        let mut match_cookie = None;
-
-        for c in store.iter_any() {
-            if let Some(v) = regex.find(c.value())? {
-                match_cookie = Some(v.as_str());
-                break;
+        let mut container_id = {
+            let mut match_cookie = None;
+            let regex = Regex::new(r"fid%3D(\d+)%26")?;
+            let store = self.cookie_store.lock().map_err(|e| anyhow!("{}", e))?;
+            for c in store.iter_any() {
+                if let Some(v) = regex.find(c.value())? {
+                    match_cookie = Some(v.as_str());
+                    break;
+                }
             }
-        }
 
-        let container_id = match_cookie.ok_or_else(|| anyhow!("Can not get container id!"))?;
-        let mut container_id = container_id.replace("fid%3D", "").replace("%26", "");
+            let container_id = match_cookie.ok_or_else(|| anyhow!("Can not get container id!"))?;
+            let container_id = container_id.replace("fid%3D", "").replace("%26", "");
 
-        dbg!(&container_id);
+            container_id
+        };
 
         let uid = if let Some(uid) = uid {
             uid.to_string()
@@ -331,6 +327,7 @@ impl WeiboClient {
         let api_url = format!(API_URL!(), uid, uid, container_id);
 
         let resp = self.get(&api_url, None, None).await?;
+
         let json = resp.json::<WeiboIndex>().await?;
 
         let tabs = json
@@ -356,7 +353,7 @@ impl WeiboClient {
         let (container_id, uid) = if container_id.is_none() {
             self.get_container_id(profile_url, None).await?
         } else {
-            (container_id.unwrap(), get_uid(profile_url)?)
+            (container_id.unwrap().to_string(), get_uid(profile_url)?)
         };
 
         let api_url = format!(API_URL!(), uid, uid, container_id);
