@@ -206,6 +206,10 @@ async fn check_and_send(
     Ok(())
 }
 
+// async fn get_proxy(client: &Client) -> Result<String> {
+
+// }
+
 fn timestamp_to_date(t: u64) -> Result<String> {
     let format = format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")?;
     let date = OffsetDateTime::from_unix_timestamp(t.try_into()?)?

@@ -216,23 +216,22 @@ impl WeiboClient {
         let resp = self.get(verif_url, None, None).await?;
         let text = resp.text().await?;
         let json = self.send_verif(&text, None).await?;
-        let mut num_times = 0;
+        // let mut num_times = 0;
         let mut msg_type = "sms";
         // let mut msg_type = "private_msg";
 
         let mut s =
             "You have to secondverify your account, please input the sms code your phone received: ";
 
-        while json.retcode != 100000 {
-            num_times += 1;
-            if num_times > 1 {
-                bail!("{}", json.msg)
-            }
+        if json.retcode != 100000 {
+            // num_times += 1;
+            // if num_times > 1 {
+            //     bail!("{}", json.msg)
+            // }
             if json.retcode == 8513 {
                 s = "You have to secondverify your account, please input the verification code in your private message: ";
                 msg_type = "private_msg";
                 self.send_verif(&text, Some(msg_type)).await?;
-                break;
             } else {
                 bail!("{}", json.msg)
             }
