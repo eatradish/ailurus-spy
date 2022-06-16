@@ -140,7 +140,7 @@ impl WeiboClient {
             .client
             .get(url)
             .query(query.unwrap_or(&[]))
-            .headers(headers.unwrap_or(HeaderMap::new()))
+            .headers(headers.unwrap_or_default())
             .timeout(Duration::from_secs(30))
             .send()
             .await?
@@ -159,7 +159,7 @@ impl WeiboClient {
             .client
             .post(url)
             .form(body)
-            .headers(headers.unwrap_or(HeaderMap::new()))
+            .headers(headers.unwrap_or_default())
             .timeout(Duration::from_secs(30))
             .send()
             .await?
@@ -262,7 +262,7 @@ impl WeiboClient {
 
         if msg_type == "sms" {
             let phone_list = Regex::new(r"phoneList: JSON.parse\(\'([^\']+)\'\)")?
-                .find(&text)?
+                .find(text)?
                 .ok_or_else(|| anyhow!("Can not get phone list!"))?
                 .as_str();
 
@@ -313,9 +313,9 @@ impl WeiboClient {
             }
 
             let container_id = match_cookie.ok_or_else(|| anyhow!("Can not get container id!"))?;
-            let container_id = container_id.replace("fid%3D", "").replace("%26", "");
+            
 
-            container_id
+            container_id.replace("fid%3D", "").replace("%26", "")
         };
 
         let uid = if let Some(uid) = uid {
@@ -353,7 +353,7 @@ impl WeiboClient {
         let (container_id, uid) = if container_id.is_none() {
             self.get_container_id(profile_url, None).await?
         } else {
-            (container_id.unwrap().to_string(), get_uid(profile_url)?)
+            (container_id.unwrap(), get_uid(profile_url)?)
         };
 
         let api_url = format!(API_URL!(), uid, uid, container_id);

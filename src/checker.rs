@@ -174,7 +174,7 @@ pub async fn check_weibo(
                     .mblog
                     .pics
                     .as_ref()
-                    .map(|x| x.into_iter().map(|x| x.url.clone()).collect::<Vec<_>>());
+                    .map(|x| x.iter().map(|x| x.url.clone()).collect::<Vec<_>>());
 
                 telegram_sends.push(TelegramSend {
                     msg: s,
@@ -185,6 +185,7 @@ pub async fn check_weibo(
         }
 
         check_and_send(bot, telegram_chat_id, telegram_sends, client).await?;
+        con.set(&key, &data[0].mblog.created_at).await?;
     }
 
     Ok(())
