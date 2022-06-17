@@ -165,7 +165,9 @@ pub async fn check_weibo(
                 let username = c.mblog.user.screen_name.clone();
                 let s = format!(
                     "<b>{} 发新微博啦！<b>\n{}\n\n{}",
-                    username, c.mblog.created_at, c.mblog.text
+                    username,
+                    c.mblog.created_at,
+                    html2text::from_read(c.mblog.text.as_bytes(), 80)
                 );
 
                 info!("{}", s);
