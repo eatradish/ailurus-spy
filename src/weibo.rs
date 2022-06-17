@@ -139,7 +139,7 @@ impl WeiboClient {
         let resp = self
             .client
             .get(url)
-            .query(query.unwrap_or(&[]))
+            .query(query.unwrap_or_default())
             .headers(headers.unwrap_or_default())
             .timeout(Duration::from_secs(30))
             .send()
@@ -153,12 +153,12 @@ impl WeiboClient {
         &self,
         url: &str,
         headers: Option<HeaderMap>,
-        body: &[(&str, &str)],
+        body: Option<&[(&str, &str)]>,
     ) -> Result<Response> {
         let resp = self
             .client
             .post(url)
-            .form(body)
+            .form(body.unwrap_or_default())
             .headers(headers.unwrap_or_default())
             .timeout(Duration::from_secs(30))
             .send()
@@ -185,7 +185,7 @@ impl WeiboClient {
         headers.insert("Referer", "https://passport.sina.cn/signin/signin".parse()?);
         headers.insert("Content-Type", "application/x-www-form-urlencoded".parse()?);
 
-        let resp = self.post(LOGIN_URL, Some(headers), body).await?;
+        let resp = self.post(LOGIN_URL, Some(headers), Some(body)).await?;
         let json = resp.json::<LoginResponseResult>().await?;
 
         match json.retcode {
@@ -297,7 +297,6 @@ impl WeiboClient {
         profile_url: &str,
         uid: Option<&str>,
     ) -> Result<(String, String)> {
-        dbg!("container id");
         self.get(profile_url, None, None).await?;
 
         let mut container_id = {
