@@ -163,7 +163,7 @@ async fn tasker(task_args: TaskArgs<'_>) {
 
         if let Some(dyn_id) = task_args.dynamic_id {
             let check_dynamic: BoxFuture<'_, Result<()>> = Box::pin(checker::check_dynamic_update(
-                &task_args.con,
+                task_args.con,
                 dyn_id,
                 &task_args.resp_client,
                 task_args.bot,
@@ -174,7 +174,7 @@ async fn tasker(task_args: TaskArgs<'_>) {
 
         if let Some(live_id) = task_args.live_id {
             let check_live: BoxFuture<'_, Result<()>> = Box::pin(checker::check_live_status(
-                &task_args.con,
+                task_args.con,
                 live_id,
                 &task_args.resp_client,
                 task_args.bot,
@@ -185,7 +185,7 @@ async fn tasker(task_args: TaskArgs<'_>) {
 
         if let Some(ref weibo) = task_args.weibo {
             let check_weibo: BoxFuture<'_, Result<()>> = Box::pin(checker::check_weibo(
-                &task_args.con,
+                task_args.con,
                 task_args.bot,
                 weibo.clone(),
                 task_args.weibo_profile_url.as_ref().unwrap().clone(),
