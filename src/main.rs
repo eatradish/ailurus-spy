@@ -161,11 +161,8 @@ async fn tasker(task_args: TaskArgs<'_>) {
     loop {
         let mut tasks = vec![];
 
-        let con = task_args.con.clone();
-        let con_2 = con.clone();
-        let con_3 = con.clone();
-
         if let Some(dyn_id) = task_args.dynamic_id {
+            let con = task_args.con.clone();
             let check_dynamic: BoxFuture<'_, Result<()>> = Box::pin(checker::check_dynamic_update(
                 con,
                 dyn_id,
@@ -177,6 +174,7 @@ async fn tasker(task_args: TaskArgs<'_>) {
         }
 
         if let Some(live_id) = task_args.live_id {
+            let con_2 = task_args.con.clone();
             let check_live: BoxFuture<'_, Result<()>> = Box::pin(checker::check_live_status(
                 con_2,
                 live_id,
@@ -188,6 +186,7 @@ async fn tasker(task_args: TaskArgs<'_>) {
         }
 
         if let Some(ref weibo) = task_args.weibo {
+            let con_3 = task_args.con.clone();
             let check_weibo: BoxFuture<'_, Result<()>> = Box::pin(checker::check_weibo(
                 con_3,
                 task_args.bot,
