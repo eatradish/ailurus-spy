@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use anyhow::{anyhow, bail, Ok, Result};
+use anyhow::{anyhow, bail, Result};
 use cookie_store::CookieStore;
 use fancy_regex::Regex;
 use reqwest::{header::HeaderMap, Client, Response, Url};
@@ -24,7 +24,7 @@ macro_rules! API_URL {
 
 #[derive(Debug, Deserialize)]
 struct LoginResponseResult {
-    retcode: u64,
+    retcode: i64,
     data: LoginResponseResultData,
     msg: String,
 }
@@ -43,13 +43,13 @@ struct PhoneList {
 
 #[derive(Debug, Deserialize)]
 struct VerifSMS {
-    retcode: u64,
+    retcode: i64,
     msg: String,
 }
 
 #[derive(Debug, Deserialize)]
 struct VeriCheck {
-    retcode: u64,
+    retcode: i64,
     msg: String,
     data: VeriCheckData,
 }
@@ -85,7 +85,7 @@ pub struct WeiboIndexDataTabsInfoTab {
 #[derive(Debug, Deserialize)]
 pub struct WeiboIndexDataCard {
     pub cards_type: Option<u64>,
-    pub mblog: WeiboIndexDataCardMblog,
+    pub mblog: Option<WeiboIndexDataCardMblog>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -312,7 +312,6 @@ impl WeiboClient {
             }
 
             let container_id = match_cookie.ok_or_else(|| anyhow!("Can not get container id!"))?;
-            
 
             container_id.replace("fid%3D", "").replace("%26", "")
         };
@@ -348,7 +347,7 @@ impl WeiboClient {
         &self,
         profile_url: &str,
         container_id: Option<String>,
-    ) -> Result<WeiboIndex> {
+    ) -> Result<(WeiboIndex, String)> {
         let (container_id, uid) = if container_id.is_none() {
             self.get_container_id(profile_url, None).await?
         } else {
@@ -356,11 +355,22 @@ impl WeiboClient {
         };
 
         let api_url = format!(API_URL!(), uid, uid, container_id);
-        let resp = self.get(&api_url, None, None).await?;
-        let json = resp.text().await?;
-        let json: WeiboIndex = serde_json::from_str(&json)?;
+        let resp = self.get(&api_url, None, None).await;
 
-        Ok(json)
+        let (json, container_id) = if let Ok(resp) = resp {
+            let json = resp.json::<WeiboIndex>().await?;
+
+            (json, container_id)
+        } else {
+            let (container_id, uid) = self.get_container_id(profile_url, None).await?;
+            let api_url = format!(API_URL!(), uid, uid, container_id);
+            let resp = self.get(&api_url, None, None).await?;
+            let json = resp.json::<WeiboIndex>().await?;
+
+            (json, container_id)
+        };
+
+        Ok((json, container_id))
     }
 }
 
@@ -378,19 +388,4 @@ fn get_uid(profile_url: &str) -> Result<String> {
         }
     }
     Ok(uid.ok_or_else(|| anyhow!("Can not get uid!"))?.to_string())
-}
-
-#[tokio::test]
-async fn test() {
-    let weibo = WeiboClient::new().unwrap();
-
-    let ailurus = weibo
-        .get_ailurus(
-            "https://m.weibo.cn/u/7756532294?uid=7756532294",
-            Some("1076037756532294".to_string()),
-        )
-        .await
-        .unwrap();
-
-    dbg!(ailurus);
 }

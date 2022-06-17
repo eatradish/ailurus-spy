@@ -131,7 +131,6 @@ pub async fn check_weibo(
     bot: Option<&AutoSend<Bot>>,
     weibo: WeiboClient,
     profile_url: String,
-    container_id: Option<String>,
     client: &Client,
     telegram_chat_id: Option<i64>,
 ) -> Result<()> {
@@ -139,22 +138,34 @@ pub async fn check_weibo(
     let mut con = con.clone();
 
     let key = format!("weibo-{}", profile_url);
+    let key_container_id = format!("weibo-{}-containerid", profile_url);
     let v: Result<String> = con.get(&key).await.map_err(|e| anyhow!("{}", e));
+    let containerid: Result<String> = con.get(&key_container_id).await.map_err(|e| anyhow!("{}", e));
 
-    let ailurus = weibo.get_ailurus(&profile_url, container_id).await?;
+    let (ailurus, container_id) = weibo.get_ailurus(&profile_url, containerid.ok()).await?;
+    con.set(&key_container_id, container_id).await?;
+
     let data = ailurus
         .data
         .cards
         .ok_or_else(|| anyhow!("Can not get weibo index!"))?;
 
+    let first_mblog = data[0]
+        .mblog
+        .as_ref()
+        .ok_or_else(|| anyhow!("Can not get mblog!"))?;
+
     if v.is_err() {
-        con.set(&key, &data[0].mblog.created_at).await?;
+        con.set(&key, first_mblog.created_at.clone()).await?;
     }
 
     if let Ok(v) = v {
-        let old_created_at_index = data.iter().position(|x| x.mblog.created_at == v);
+        let old_created_at_index = data
+            .iter()
+            .position(|x| x.mblog.as_ref().map(|x| &x.created_at) == Some(&v));
+
         if old_created_at_index.is_none() {
-            con.set(&key, &data[0].mblog.created_at).await?;
+            con.set(&key, first_mblog.created_at.clone()).await?;
         }
 
         let old_created_at_index = old_created_at_index.unwrap_or(0);
@@ -162,18 +173,21 @@ pub async fn check_weibo(
         let mut telegram_sends = vec![];
         for (i, c) in data.iter().enumerate() {
             if i < old_created_at_index {
-                let username = c.mblog.user.screen_name.clone();
+                let mblog = c
+                    .mblog
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("Can not get mblog!"))?;
+                let username = mblog.user.screen_name.clone();
                 let s = format!(
                     "<b>{} 发新微博啦！<b>\n{}\n\n{}",
                     username,
-                    c.mblog.created_at,
-                    html2text::from_read(c.mblog.text.as_bytes(), 80)
+                    mblog.created_at,
+                    html2text::from_read(mblog.text.as_bytes(), 80)
                 );
 
                 info!("{}", s);
 
-                let photos = c
-                    .mblog
+                let photos = mblog
                     .pics
                     .as_ref()
                     .map(|x| x.iter().map(|x| x.url.clone()).collect::<Vec<_>>());
@@ -187,7 +201,7 @@ pub async fn check_weibo(
         }
 
         check_and_send(bot, telegram_chat_id, telegram_sends, client).await?;
-        con.set(&key, &data[0].mblog.created_at).await?;
+        con.set(&key, first_mblog.created_at.clone()).await?;
     }
 
     Ok(())

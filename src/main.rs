@@ -28,7 +28,6 @@ struct TaskArgs<'a> {
     telegram_chat_id: Option<i64>,
     weibo: Option<WeiboClient>,
     weibo_profile_url: Option<String>,
-    weibo_container_id: Option<String>,
 }
 
 #[tokio::main]
@@ -62,7 +61,6 @@ async fn main() {
                 telegram_chat_id: chat_id.and_then(|x| x.parse::<i64>().ok()),
                 weibo,
                 weibo_profile_url: std::env::var("AILURUS_PROFILE_URL").ok(),
-                weibo_container_id: std::env::var("AILURUS_CONTAINER_ID").ok(),
             };
 
             tasker(task_args).await;
@@ -189,7 +187,6 @@ async fn tasker(task_args: TaskArgs<'_>) {
                 task_args.bot,
                 weibo.clone(),
                 task_args.weibo_profile_url.as_ref().unwrap().clone(),
-                task_args.weibo_container_id.clone(),
                 &task_args.resp_client,
                 task_args.telegram_chat_id,
             ));
