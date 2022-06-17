@@ -12,7 +12,7 @@ use crate::{
 };
 
 pub async fn check_dynamic_update(
-    con: MultiplexedConnection,
+    con: &MultiplexedConnection,
     uid: u64,
     client: &Client,
     bot: Option<&AutoSend<Bot>>,
@@ -83,7 +83,7 @@ pub async fn check_dynamic_update(
 }
 
 pub async fn check_live_status(
-    con: MultiplexedConnection,
+    con: &MultiplexedConnection,
     room_id: u64,
     client: &Client,
     bot: Option<&AutoSend<Bot>>,
@@ -127,7 +127,7 @@ pub async fn check_live_status(
 }
 
 pub async fn check_weibo(
-    con: MultiplexedConnection,
+    con: &MultiplexedConnection,
     bot: Option<&AutoSend<Bot>>,
     weibo: WeiboClient,
     profile_url: String,
@@ -207,10 +207,6 @@ async fn check_and_send(
 
     Ok(())
 }
-
-// async fn get_proxy(client: &Client) -> Result<String> {
-
-// }
 
 fn timestamp_to_date(t: u64) -> Result<String> {
     let format = format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")?;
