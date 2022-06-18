@@ -37,6 +37,7 @@ dependencies = [
  "html2text",
  "image",
  "lazy_static",
+ "rand",
  "redis",
  "reqwest",
  "reqwest_cookie_store",

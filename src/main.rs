@@ -1,5 +1,6 @@
 use anyhow::Result;
 use futures::future::BoxFuture;
+use rand::Rng;
 use redis::aio::MultiplexedConnection;
 use teloxide::prelude::*;
 use tokio::time::{sleep, Duration};
@@ -156,8 +157,12 @@ async fn init_redis_and_network_client() -> Result<(MultiplexedConnection, reqwe
 }
 
 async fn tasker(task_args: TaskArgs<'_>) {
+    let mut rng = rand::thread_rng();
+
     loop {
         let mut tasks = vec![];
+
+        let sleep_time = rng.gen_range(60..=180);
 
         if let Some(dyn_id) = task_args.dynamic_id {
             let check_dynamic: BoxFuture<'_, Result<()>> = Box::pin(checker::check_dynamic_update(
@@ -197,6 +202,6 @@ async fn tasker(task_args: TaskArgs<'_>) {
             error!("{}", e.to_string());
         }
 
-        sleep(Duration::from_secs(180)).await;
+        sleep(Duration::from_secs(sleep_time)).await;
     }
 }
