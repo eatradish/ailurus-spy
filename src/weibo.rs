@@ -274,8 +274,12 @@ impl WeiboClient {
 
             let json: Vec<PhoneList> = serde_json::from_str(phone_list)?;
 
-            query.push(("number".to_string(), format!("{}", json[0].number)));
-            query.push(("mask_mobile".to_string(), json[0].mask_mobile.clone()));
+            let first_json = json
+                .first()
+                .ok_or_else(|| anyhow!("phone list is empty!"))?;
+
+            query.push(("number".to_string(), format!("{}", first_json.number)));
+            query.push(("mask_mobile".to_string(), first_json.mask_mobile.clone()));
         } else {
             self.get(SEND_PRIVATE_MSG_URL, Some(&[("way", "private_msg")]), None)
                 .await?;

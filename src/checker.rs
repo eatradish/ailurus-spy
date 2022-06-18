@@ -26,7 +26,14 @@ pub async fn check_dynamic_update(
     let v: Result<u64> = con.get(&key).await.map_err(|e| anyhow!("{}", e));
     if v.is_err() {
         info!("Creating new spy {}...", &key);
-        con.set(&key, dynamic[0].timestamp).await?;
+        con.set(
+            &key,
+            dynamic
+                .first()
+                .ok_or_else(|| anyhow!("{} dynamic is empty!", uid))?
+                .timestamp,
+        )
+        .await?;
     }
     let mut is_update = false;
     let mut telegram_sends = vec![];
@@ -140,7 +147,10 @@ pub async fn check_weibo(
     let key = format!("weibo-{}", profile_url);
     let key_container_id = format!("weibo-{}-containerid", profile_url);
     let v: Result<String> = con.get(&key).await.map_err(|e| anyhow!("{}", e));
-    let containerid: Result<String> = con.get(&key_container_id).await.map_err(|e| anyhow!("{}", e));
+    let containerid: Result<String> = con
+        .get(&key_container_id)
+        .await
+        .map_err(|e| anyhow!("{}", e));
 
     let (ailurus, container_id) = weibo.get_ailurus(&profile_url, containerid.ok()).await?;
     con.set(&key_container_id, container_id).await?;
@@ -150,7 +160,9 @@ pub async fn check_weibo(
         .cards
         .ok_or_else(|| anyhow!("Can not get weibo index!"))?;
 
-    let first_mblog = data[0]
+    let first_mblog = data
+        .first()
+        .ok_or_else(|| anyhow!("mblog is empty!"))?
         .mblog
         .as_ref()
         .ok_or_else(|| anyhow!("Can not get mblog!"))?;
