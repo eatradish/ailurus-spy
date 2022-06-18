@@ -386,5 +386,6 @@ fn get_uid(profile_url: &str) -> Result<String> {
             break;
         }
     }
+
     Ok(uid.ok_or_else(|| anyhow!("Can not get uid!"))?.to_string())
 }

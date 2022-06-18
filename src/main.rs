@@ -26,7 +26,7 @@ struct TaskArgs<'a> {
     dynamic_id: Option<u64>,
     live_id: Option<u64>,
     telegram_chat_id: Option<i64>,
-    weibo: Option<WeiboClient>,
+    weibo: Option<&'a WeiboClient>,
     weibo_profile_url: Option<String>,
 }
 
@@ -59,7 +59,7 @@ async fn main() {
                 dynamic_id,
                 live_id,
                 telegram_chat_id: chat_id.and_then(|x| x.parse::<i64>().ok()),
-                weibo,
+                weibo: weibo.as_ref(),
                 weibo_profile_url: std::env::var("AILURUS_PROFILE_URL").ok(),
             };
 
@@ -181,11 +181,11 @@ async fn tasker(task_args: TaskArgs<'_>) {
             tasks.push(check_live);
         }
 
-        if let Some(ref weibo) = task_args.weibo {
+        if let Some(weibo) = task_args.weibo {
             let check_weibo: BoxFuture<'_, Result<()>> = Box::pin(checker::check_weibo(
                 task_args.con,
                 task_args.bot,
-                weibo.clone(),
+                weibo,
                 task_args.weibo_profile_url.as_ref().unwrap().clone(),
                 &task_args.resp_client,
                 task_args.telegram_chat_id,

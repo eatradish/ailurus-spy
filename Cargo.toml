@@ -27,4 +27,3 @@ fancy-regex = "0.10"
 rustyline = "9.1"
 futures = "0.3"
 html2text = "0.4"
-

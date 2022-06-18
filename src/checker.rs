@@ -129,7 +129,7 @@ pub async fn check_live_status(
 pub async fn check_weibo(
     con: &MultiplexedConnection,
     bot: Option<&AutoSend<Bot>>,
-    weibo: WeiboClient,
+    weibo: &WeiboClient,
     profile_url: String,
     client: &Client,
     telegram_chat_id: Option<i64>,
