@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use futures::future::BoxFuture;
 use rand::Rng;
 use redis::aio::MultiplexedConnection;
@@ -42,12 +42,23 @@ async fn main() {
     dotenv::dotenv().ok();
 
     let (bot, chat_id) = init_tgbot();
-    let weibo = init_weibo_client().await;
+
+    let weibo_and_profile_url = match init_weibo_client().await {
+        Ok((weibo, profile_url)) => (weibo, profile_url),
+        Err(e) => {
+            error_and_exit!(e);
+        }
+    };
+
+    let (weibo, profile_url) = weibo_and_profile_url;
+
     let (dynamic_id, live_id) = init_bilibili_dyn_and_live();
 
     if dynamic_id.is_none() && live_id.is_none() && weibo.is_none() {
         error_and_exit!(
-            "Plaset set AILURUS_DYNAMIC to check dynamic or set AILURUS_LIVE to check live status!"
+            "Plaset set AILURUS_DYNAMIC to check dynamic \n
+            or set AILURUS_LIVE to check live status \n
+            or set AILURUS_WEIBO_USERNAME and AILURUS_WEIBO_PASSWORD and AILURUS_PROFILE_URL to check weibo!"
         );
     }
 
@@ -61,7 +72,7 @@ async fn main() {
                 live_id,
                 telegram_chat_id: chat_id.and_then(|x| x.parse::<i64>().ok()),
                 weibo: weibo.as_ref(),
-                weibo_profile_url: std::env::var("AILURUS_PROFILE_URL").ok(),
+                weibo_profile_url: profile_url,
             };
 
             tasker(task_args).await;
@@ -91,41 +102,44 @@ fn init_bilibili_dyn_and_live() -> (Option<u64>, Option<u64>) {
     (dynamic_id, live_id)
 }
 
-async fn init_weibo_client() -> Option<WeiboClient> {
-    let weibo = if let Ok(account) = std::env::var("AILURUS_WEIBO_ACCOUNT") {
+async fn init_weibo_client() -> Result<(Option<WeiboClient>, Option<String>)> {
+    let account_and_password = if let Ok(account) = std::env::var("AILURUS_WEIBO_ACCOUNT") {
         if let Ok(password) = std::env::var("AILURUS_WEIBO_PASSWORD") {
-            let weibo = weibo::WeiboClient::new();
-            if let Err(e) = weibo {
-                error_and_exit!(e);
-            }
-
-            let weibo = weibo.unwrap();
-            if let Err(e) = weibo.login(&account, &password).await {
-                error_and_exit!(e);
-            }
-
-            Some(weibo)
+            Some((account, password))
         } else {
             None
         }
-    } else if std::env::var("AILURUS_PROFILE_URL").is_ok()
-        && std::env::var("AILURUS_CONTAINER_ID").is_ok()
-    {
-        let weibo = weibo::WeiboClient::new();
-
-        weibo.ok()
     } else {
         None
     };
 
-    if std::env::var("AILURUS_PROFILE_URL").is_ok()
-        && weibo.is_none()
-        && std::env::var("AILURUS_CONTAINER_ID").is_err()
-    {
-        error_and_exit!("You have no login to weibo or set container id!");
+    let weibo = if let Some((account, password)) = account_and_password {
+        login_weibo(&account, &password).await.ok()
+    } else {
+        None
+    };
+
+    let profile_url = std::env::var("AILURUS_PROFILE_URL").ok();
+
+    if weibo.is_none() && profile_url.is_some() {
+        bail!(
+            "AILURUS_PROFILE_URL is set but weibo account info not to set!\n
+        Please set AILURUS_WEIBO_USERNAME and AILURUS_WEIBO_PASSWORD!"
+        );
     }
 
-    weibo
+    if weibo.is_some() && profile_url.is_none() {
+        bail!("Weibo account info is set but profile url not to set!\nPlease set AILURUS_PROFILE_URL!");
+    }
+
+    Ok((weibo, profile_url))
+}
+
+async fn login_weibo(account: &str, password: &str) -> Result<WeiboClient> {
+    let weibo = weibo::WeiboClient::new()?;
+    weibo.login(account, password).await?;
+
+    Ok(weibo)
 }
 
 fn init_tgbot() -> (Option<AutoSend<Bot>>, Option<String>) {
