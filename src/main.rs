@@ -110,7 +110,7 @@ async fn init_weibo_client() -> Result<(Option<WeiboClient>, Option<String>)> {
         if let Ok(password) = std::env::var("AILURUS_WEIBO_PASSWORD") {
             Some((account, password))
         } else {
-            None 
+            None
         }
     } else {
         None
@@ -177,9 +177,9 @@ async fn init_redis() -> Result<MultiplexedConnection> {
 
 fn init_network_client() -> Result<reqwest::Client> {
     let resp_client = reqwest::ClientBuilder::new()
-    .user_agent("User-Agent: Mozilla/5.0 (X11; AOSC OS; Linux x86_64; rv:98.0) Gecko/20100101 Firefox/98.0")
-    .timeout(Duration::from_secs(30))
-    .build()?;
+        .user_agent("User-Agent: Mozilla/5.0 (X11; AOSC OS; Linux x86_64; rv:98.0) Gecko/20100101 Firefox/98.0")
+        .timeout(Duration::from_secs(30))
+        .build()?;
 
     Ok(resp_client)
 }
