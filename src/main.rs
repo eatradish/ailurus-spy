@@ -20,6 +20,17 @@ macro_rules! error_and_exit {
     };
 }
 
+macro_rules! unwrap_or_exit {
+    ($f:expr) => {
+        match $f {
+            Ok(v) => v,
+            Err(e) => {
+                error_and_exit!(e);
+            }
+        }
+    };
+}
+
 struct TaskArgs<'a> {
     con: &'a MultiplexedConnection,
     resp_client: reqwest::Client,
@@ -43,12 +54,7 @@ async fn main() {
 
     let (bot, chat_id) = init_tgbot();
 
-    let weibo_and_profile_url = match init_weibo_client().await {
-        Ok((weibo, profile_url)) => (weibo, profile_url),
-        Err(e) => {
-            error_and_exit!(e);
-        }
-    };
+    let weibo_and_profile_url = unwrap_or_exit!(init_weibo_client().await);
 
     let (weibo, profile_url) = weibo_and_profile_url;
 
@@ -62,25 +68,22 @@ async fn main() {
         );
     }
 
-    match init_redis_and_network_client().await {
-        Ok((con, resp_client)) => {
-            let task_args = TaskArgs {
-                con: &con,
-                resp_client,
-                bot: bot.as_ref(),
-                dynamic_id,
-                live_id,
-                telegram_chat_id: chat_id.and_then(|x| x.parse::<i64>().ok()),
-                weibo: weibo.as_ref(),
-                weibo_profile_url: profile_url,
-            };
+    let con = unwrap_or_exit!(init_redis().await);
 
-            tasker(task_args).await;
-        }
-        Err(e) => {
-            error_and_exit!(e);
-        }
-    }
+    let network_client = unwrap_or_exit!(init_network_client());
+
+    let task_args = TaskArgs {
+        con: &con,
+        resp_client: network_client,
+        bot: bot.as_ref(),
+        dynamic_id,
+        live_id,
+        telegram_chat_id: chat_id.and_then(|x| x.parse::<i64>().ok()),
+        weibo: weibo.as_ref(),
+        weibo_profile_url: profile_url,
+    };
+
+    tasker(task_args).await;
 }
 
 fn init_bilibili_dyn_and_live() -> (Option<u64>, Option<u64>) {
@@ -107,7 +110,7 @@ async fn init_weibo_client() -> Result<(Option<WeiboClient>, Option<String>)> {
         if let Ok(password) = std::env::var("AILURUS_WEIBO_PASSWORD") {
             Some((account, password))
         } else {
-            None
+            None 
         }
     } else {
         None
@@ -158,16 +161,27 @@ fn init_tgbot() -> (Option<AutoSend<Bot>>, Option<String>) {
     (bot, chat_id)
 }
 
-async fn init_redis_and_network_client() -> Result<(MultiplexedConnection, reqwest::Client)> {
-    info!("Connecting redis://127.0.0.1 ...");
-    let redis_client = redis::Client::open("redis://127.0.0.1/")?;
+async fn init_redis() -> Result<MultiplexedConnection> {
+    let redis_client = loop {
+        info!("Try connecting redis://127.0.0.1 ...");
+        if let Ok(client) = redis::Client::open("redis://127.0.0.1/") {
+            break client;
+        } else {
+            error!("Connect failed! Please check your redis server is opened?")
+        }
+    };
     let connect = redis_client.get_multiplexed_tokio_connection().await?;
-    let resp_client = reqwest::ClientBuilder::new()
-        .user_agent("User-Agent: Mozilla/5.0 (X11; AOSC OS; Linux x86_64; rv:98.0) Gecko/20100101 Firefox/98.0")
-        .timeout(Duration::from_secs(30))
-        .build()?;
 
-    Ok((connect, resp_client))
+    Ok(connect)
+}
+
+fn init_network_client() -> Result<reqwest::Client> {
+    let resp_client = reqwest::ClientBuilder::new()
+    .user_agent("User-Agent: Mozilla/5.0 (X11; AOSC OS; Linux x86_64; rv:98.0) Gecko/20100101 Firefox/98.0")
+    .timeout(Duration::from_secs(30))
+    .build()?;
+
+    Ok(resp_client)
 }
 
 async fn tasker(task_args: TaskArgs<'_>) {
