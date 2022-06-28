@@ -191,7 +191,7 @@ pub async fn check_weibo(
                     .ok_or_else(|| anyhow!("Can not get mblog!"))?;
                 let username = mblog.user.screen_name.clone();
                 let s = format!(
-                    "<b>{} 发新微博啦！<b>\n{}\n\n{}",
+                    "<b>{} 发新微博啦！</b>\n{}\n\n{}",
                     username,
                     mblog.created_at,
                     html2text::from_read(mblog.text.as_bytes(), 80)
