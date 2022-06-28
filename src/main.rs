@@ -226,8 +226,12 @@ async fn tasker(task_args: TaskArgs<'_>) {
             tasks.push(check_weibo);
         }
 
-        if let Err(e) = futures::future::try_join_all(tasks).await {
-            error!("{}", e.to_string());
+        let results = futures::future::join_all(tasks).await;
+
+        for i in results {
+            if let Err(e) = i {
+                error!("{}", e);
+            }
         }
 
         sleep(Duration::from_secs(sleep_time)).await;
