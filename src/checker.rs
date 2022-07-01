@@ -8,6 +8,7 @@ use tracing::{error, info};
 use crate::{
     dynamic, live,
     sender::{self, TelegramSend},
+    weibo::WeiboClient,
 };
 
 pub async fn check_dynamic_update(
@@ -25,7 +26,14 @@ pub async fn check_dynamic_update(
     let v: Result<u64> = con.get(&key).await.map_err(|e| anyhow!("{}", e));
     if v.is_err() {
         info!("Creating new spy {}...", &key);
-        con.set(&key, dynamic[0].timestamp).await?;
+        con.set(
+            &key,
+            dynamic
+                .first()
+                .ok_or_else(|| anyhow!("{} dynamic is empty!", uid))?
+                .timestamp,
+        )
+        .await?;
     }
     let mut is_update = false;
     let mut telegram_sends = vec![];
@@ -120,6 +128,92 @@ pub async fn check_live_status(
         } else if ls != 1 {
             con.set(key, false).await?;
         }
+    }
+
+    Ok(())
+}
+
+pub async fn check_weibo(
+    con: &MultiplexedConnection,
+    bot: Option<&AutoSend<Bot>>,
+    weibo: &WeiboClient,
+    profile_url: String,
+    client: &Client,
+    telegram_chat_id: Option<i64>,
+) -> Result<()> {
+    info!("Checking {} weibo ...", profile_url);
+    let mut con = con.clone();
+
+    let key = format!("weibo-{}", profile_url);
+    let key_container_id = format!("weibo-{}-containerid", profile_url);
+    let v: Result<String> = con.get(&key).await.map_err(|e| anyhow!("{}", e));
+    let containerid: Result<String> = con
+        .get(&key_container_id)
+        .await
+        .map_err(|e| anyhow!("{}", e));
+
+    let (ailurus, container_id) = weibo.get_ailurus(&profile_url, containerid.ok()).await?;
+    con.set(&key_container_id, container_id).await?;
+
+    let data = ailurus
+        .data
+        .cards
+        .ok_or_else(|| anyhow!("Can not get weibo index!"))?;
+
+    let first_mblog = data
+        .first()
+        .ok_or_else(|| anyhow!("mblog is empty!"))?
+        .mblog
+        .as_ref()
+        .ok_or_else(|| anyhow!("Can not get mblog!"))?;
+
+    if v.is_err() {
+        con.set(&key, first_mblog.created_at.clone()).await?;
+    }
+
+    if let Ok(v) = v {
+        let old_created_at_index = data
+            .iter()
+            .position(|x| x.mblog.as_ref().map(|x| &x.created_at) == Some(&v));
+
+        if old_created_at_index.is_none() {
+            con.set(&key, first_mblog.created_at.clone()).await?;
+        }
+
+        let old_created_at_index = old_created_at_index.unwrap_or(0);
+
+        let mut telegram_sends = vec![];
+        for (i, c) in data.iter().enumerate() {
+            if i < old_created_at_index {
+                let mblog = c
+                    .mblog
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("Can not get mblog!"))?;
+                let username = mblog.user.screen_name.clone();
+                let s = format!(
+                    "<b>{} 发新微博啦！</b>\n{}\n\n{}",
+                    username,
+                    mblog.created_at,
+                    html2text::from_read(mblog.text.as_bytes(), 80)
+                );
+
+                info!("{}", s);
+
+                let photos = mblog
+                    .pics
+                    .as_ref()
+                    .map(|x| x.iter().map(|x| x.url.clone()).collect::<Vec<_>>());
+
+                telegram_sends.push(TelegramSend {
+                    msg: s,
+                    photos,
+                    photo: None,
+                });
+            }
+        }
+
+        check_and_send(bot, telegram_chat_id, telegram_sends, client).await?;
+        con.set(&key, first_mblog.created_at.clone()).await?;
     }
 
     Ok(())
