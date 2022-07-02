@@ -377,7 +377,7 @@ impl WeiboClient {
     }
 }
 
-fn get_uid(profile_url: &str) -> Result<String> {
+pub fn get_uid(profile_url: &str) -> Result<String> {
     let url = Url::parse(profile_url)?;
     let query = url
         .query()

@@ -8,7 +8,7 @@ use tracing::{error, info};
 use crate::{
     dynamic, live,
     sender::{self, TelegramSend},
-    weibo::WeiboClient,
+    weibo::{self, WeiboClient},
 };
 
 pub async fn check_dynamic_update(
@@ -144,8 +144,10 @@ pub async fn check_weibo(
     info!("Checking {} weibo ...", profile_url);
     let mut con = con.clone();
 
-    let key = format!("weibo-{}", profile_url);
-    let key_container_id = format!("weibo-{}-containerid", profile_url);
+    let uid = weibo::get_uid(&profile_url)?;
+
+    let key = format!("weibo-{}", uid);
+    let key_container_id = format!("weibo-{}-containerid", uid);
     let v: Result<String> = con.get(&key).await.map_err(|e| anyhow!("{}", e));
     let containerid: Result<String> = con
         .get(&key_container_id)
@@ -158,7 +160,10 @@ pub async fn check_weibo(
     let data = ailurus
         .data
         .cards
-        .ok_or_else(|| anyhow!("Can not get weibo index!"))?;
+        .ok_or_else(|| anyhow!("Can not get weibo index!"))?
+        .into_iter()
+        .filter(|x| x.cards_type == Some(9))
+        .collect::<Vec<_>>();
 
     let first_mblog = data
         .first()
@@ -191,10 +196,11 @@ pub async fn check_weibo(
                     .ok_or_else(|| anyhow!("Can not get mblog!"))?;
                 let username = mblog.user.screen_name.clone();
                 let s = format!(
-                    "<b>{} 发新微博啦！</b>\n{}\n\n{}",
+                    "<b>{} 发新微博啦！</b>\n{}\n{}\n\n{}",
                     username,
                     mblog.created_at,
-                    html2text::from_read(mblog.text.as_bytes(), 80)
+                    html2text::from_read(mblog.text.as_bytes(), 80),
+                    format_args!("https://weibo.com/{}/{}", uid, mblog.id)
                 );
 
                 info!("{}", s);
