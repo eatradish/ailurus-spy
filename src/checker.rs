@@ -162,7 +162,7 @@ pub async fn check_weibo(
         .cards
         .ok_or_else(|| anyhow!("Can not get weibo index!"))?
         .into_iter()
-        .filter(|x| x.cards_type == Some(9))
+        .filter(|x| x.card_type == Some(9))
         .collect::<Vec<_>>();
 
     let first_mblog = data

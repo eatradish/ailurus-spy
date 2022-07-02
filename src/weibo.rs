@@ -84,7 +84,7 @@ pub struct WeiboIndexDataTabsInfoTab {
 
 #[derive(Debug, Deserialize)]
 pub struct WeiboIndexDataCard {
-    pub cards_type: Option<u64>,
+    pub card_type: Option<u64>,
     pub mblog: Option<WeiboIndexDataCardMblog>,
 }
 
