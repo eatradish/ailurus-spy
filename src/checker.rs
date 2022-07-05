@@ -51,7 +51,7 @@ pub async fn check_dynamic_update(
                 } else {
                     "None".to_string()
                 };
-                info!("用户 {} 有新动态！内容：{}", name, desc);
+                info!("用户「{}」有新动态！内容：{}", name, desc);
                 let date = timestamp_to_date(i.timestamp)?;
                 let url = format!("https://t.bilibili.com/{}", i.dynamic_id);
                 let s = format!(
@@ -199,7 +199,7 @@ pub async fn check_weibo(
                     "<b>「{}」发新微博啦！</b>\n{}\n{}\n{}",
                     username,
                     mblog.created_at,
-                    html2text::from_read(mblog.text.as_bytes(), 80),
+                    html2text::from_read(mblog.text.as_bytes(), 1000),
                     format_args!("https://weibo.com/{}/{}", uid, mblog.id)
                 );
 
