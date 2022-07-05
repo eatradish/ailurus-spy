@@ -55,7 +55,7 @@ pub async fn check_dynamic_update(
                 let date = timestamp_to_date(i.timestamp)?;
                 let url = format!("https://t.bilibili.com/{}", i.dynamic_id);
                 let s = format!(
-                    "<b>{} 有新动态啦！</b>\n{}\n{}\n\n{}",
+                    "<b>「{}」有新动态啦！</b>\n{}\n{}\n\n{}",
                     name, date, desc, url
                 );
                 let group = if let Some(picture) = i.picture.clone() {
@@ -109,7 +109,7 @@ pub async fn check_live_status(
         let db_live_status = db_live_status.unwrap();
         if !db_live_status && ls == 1 {
             let s = format!(
-                "<b>{} 开播啦！</b>\n{}\n{}\n\n{}",
+                "<b>「{}」开播啦！</b>\n{}\n{}\n\n{}",
                 live.uname,
                 date,
                 live.title,
@@ -196,7 +196,7 @@ pub async fn check_weibo(
                     .ok_or_else(|| anyhow!("Can not get mblog!"))?;
                 let username = mblog.user.screen_name.clone();
                 let s = format!(
-                    "<b>{} 发新微博啦！</b>\n{}\n{}\n\n{}",
+                    "<b>「{}」发新微博啦！</b>\n{}\n{}\n{}",
                     username,
                     mblog.created_at,
                     html2text::from_read(mblog.text.as_bytes(), 80),
