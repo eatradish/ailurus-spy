@@ -56,7 +56,10 @@ pub async fn check_dynamic_update(
                 let url = format!("https://t.bilibili.com/{}", i.dynamic_id);
                 let s = format!(
                     "<b>「{}」有新动态啦！</b>\n{}\n{}\n\n{}",
-                    name, date, desc, url
+                    name,
+                    date,
+                    desc.replace('<', "【").replace('>', "】"),
+                    url
                 );
                 let group = if let Some(picture) = i.picture.clone() {
                     let mut group = Vec::new();
@@ -110,9 +113,9 @@ pub async fn check_live_status(
         if !db_live_status && ls == 1 {
             let s = format!(
                 "<b>「{}」开播啦！</b>\n{}\n{}\n\n{}",
-                live.uname,
+                live.uname.replace('<', "【").replace('>', "】"),
                 date,
-                live.title,
+                live.title.replace('<', "【").replace('>', "】"),
                 format_args!("https://live.bilibili.com/{}", live.room_id)
             );
             info!("{}", s);
@@ -199,7 +202,9 @@ pub async fn check_weibo(
                     "<b>「{}」发新微博啦！</b>\n{}\n{}\n{}",
                     username,
                     mblog.created_at,
-                    html2text::from_read(mblog.text.as_bytes(), 1000),
+                    html2text::from_read(mblog.text.as_bytes(), 1000)
+                        .replace('<', "【")
+                        .replace('>', "】"),
                     format_args!("https://weibo.com/{}/{}", uid, mblog.id)
                 );
 

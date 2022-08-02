@@ -214,5 +214,5 @@ pub async fn get_ailurus_dynamic(uid: u64, client: &Client) -> Result<Vec<BiliDy
 async fn test() {
     let client = Client::new();
     let json = get_ailurus_dynamic(1501380958, &client).await.unwrap();
-    dbg!(json[0].to_owned());
+    dbg!(json[4].to_owned());
 }
