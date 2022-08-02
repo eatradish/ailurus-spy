@@ -117,7 +117,7 @@ async fn init_weibo_client() -> Result<(Option<WeiboClient>, Option<String>)> {
     };
 
     let weibo = if let Some((account, password)) = account_and_password {
-        login_weibo(&account, &password).await.ok()
+        Some(login_weibo(&account, &password).await?)
     } else {
         None
     };
