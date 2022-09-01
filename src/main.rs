@@ -1,10 +1,10 @@
-use anyhow::{bail, Result};
+use anyhow::Result;
 use futures::future::BoxFuture;
 use rand::Rng;
 use redis::aio::MultiplexedConnection;
-use teloxide::prelude::*;
+use sender::{AilurusSender, Tg};
 use tokio::time::{sleep, Duration};
-use tracing::{error, info, warn};
+use tracing::{error, info};
 use weibo::WeiboClient;
 
 mod checker;
@@ -30,16 +30,24 @@ macro_rules! unwrap_or_exit {
         }
     };
 }
-
 struct TaskArgs<'a> {
     con: &'a MultiplexedConnection,
     resp_client: reqwest::Client,
-    bot: Option<&'a AutoSend<Bot>>,
+    senders: &'a mut [Sender],
+    weibo: Option<WeiboInit>,
+    bili_init: Option<BilibiliInit>,
+}
+
+pub struct Sender {
+    sender: Box<dyn AilurusSender>,
+    admin_chat_id: i64,
+    target_chat_id: i64,
+}
+
+#[derive(Clone)]
+struct BilibiliInit {
     dynamic_id: Option<u64>,
     live_id: Option<u64>,
-    telegram_chat_id: Option<i64>,
-    weibo: Option<&'a WeiboClient>,
-    weibo_profile_url: Option<String>,
 }
 
 #[tokio::main]
@@ -52,21 +60,21 @@ async fn main() {
 
     dotenv::dotenv().ok();
 
-    let (bot, chat_id) = init_tgbot();
+    let tg = init_tgbot();
 
-    let weibo_and_profile_url = unwrap_or_exit!(init_weibo_client().await);
+    let weibo = init_weibo_client().await;
 
-    let (weibo, profile_url) = weibo_and_profile_url;
+    let bilibili = init_bilibili_dyn_and_live();
 
-    let (dynamic_id, live_id) = init_bilibili_dyn_and_live();
-
-    if dynamic_id.is_none() && live_id.is_none() && weibo.is_none() {
+    if tg.is_none() && weibo.is_none() && bilibili.is_none() {
         error_and_exit!(
             "Plaset set AILURUS_DYNAMIC to check dynamic \n
             or set AILURUS_LIVE to check live status \n
             or set AILURUS_WEIBO_USERNAME and AILURUS_WEIBO_PASSWORD and AILURUS_PROFILE_URL to check weibo!"
         );
     }
+
+    let senders = &mut [tg.expect("Must unwrap success")][..];
 
     let con = unwrap_or_exit!(init_redis().await);
 
@@ -75,90 +83,75 @@ async fn main() {
     let task_args = TaskArgs {
         con: &con,
         resp_client: network_client,
-        bot: bot.as_ref(),
-        dynamic_id,
-        live_id,
-        telegram_chat_id: chat_id.and_then(|x| x.parse::<i64>().ok()),
-        weibo: weibo.as_ref(),
-        weibo_profile_url: profile_url,
+        senders,
+        weibo,
+        bili_init: bilibili,
     };
 
     tasker(task_args).await;
 }
 
-fn init_bilibili_dyn_and_live() -> (Option<u64>, Option<u64>) {
-    let mut args = vec![];
-    for i in &["AILURUS_DYNAMIC", "AILURUS_LIVE"] {
-        if let Ok(id) = std::env::var(i) {
-            if let Ok(id) = id.parse::<u64>() {
-                args.push(Some(id));
-            } else {
-                error_and_exit!(format!("var {} is not a number!", i));
-            }
-        } else {
-            args.push(None)
-        };
-    }
-    let dynamic_id = args[0];
-    let live_id = args[1];
+fn init_bilibili_dyn_and_live() -> Option<BilibiliInit> {
+    let dynamic_id = std::env::var("AILURUS_DYNAMIC")
+        .ok()
+        .and_then(|x| x.parse::<u64>().ok());
 
-    (dynamic_id, live_id)
+    let live_id = std::env::var("AILURUS_LIVE")
+        .ok()
+        .and_then(|x| x.parse::<u64>().ok());
+
+    Some(BilibiliInit {
+        dynamic_id,
+        live_id,
+    })
 }
 
-async fn init_weibo_client() -> Result<(Option<WeiboClient>, Option<String>)> {
-    let account_and_password = if let Ok(account) = std::env::var("AILURUS_WEIBO_ACCOUNT") {
-        if let Ok(password) = std::env::var("AILURUS_WEIBO_PASSWORD") {
-            Some((account, password))
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    let weibo = if let Some((account, password)) = account_and_password {
-        Some(login_weibo(&account, &password).await?)
-    } else {
-        None
-    };
-
-    let profile_url = std::env::var("AILURUS_PROFILE_URL").ok();
-
-    if weibo.is_none() && profile_url.is_some() {
-        bail!(
-            "AILURUS_PROFILE_URL is set but weibo account info not to set!\n
-        Please set AILURUS_WEIBO_USERNAME and AILURUS_WEIBO_PASSWORD!"
-        );
-    }
-
-    if weibo.is_some() && profile_url.is_none() {
-        bail!("Weibo account info is set but profile url not to set!\nPlease set AILURUS_PROFILE_URL!");
-    }
-
-    Ok((weibo, profile_url))
+pub struct WeiboInit {
+    weibo: WeiboClient,
+    target_profile_url: String,
 }
 
-async fn login_weibo(account: &str, password: &str) -> Result<WeiboClient> {
+async fn init_weibo_client() -> Option<WeiboInit> {
+    let weibo = if let Ok(weibo) = login_weibo().await {
+        weibo
+    } else {
+        return None;
+    };
+
+    let target_profile_url = unwrap_or_exit!(std::env::var("AILURUS_PROFILE_URL"));
+
+    Some(WeiboInit {
+        weibo,
+        target_profile_url,
+    })
+}
+
+async fn login_weibo() -> Result<WeiboClient> {
+    let account = std::env::var("AILURUS_WEIBO_ACCOUNT")?;
+    let password = std::env::var("AILURUS_WEIBO_PASSWORD")?;
     let weibo = weibo::WeiboClient::new()?;
-    weibo.login(account, password).await?;
+
+    weibo.login(&account, &password).await?;
 
     Ok(weibo)
 }
 
-fn init_tgbot() -> (Option<AutoSend<Bot>>, Option<String>) {
-    let (bot, chat_id) = if std::env::var("TELOXIDE_TOKEN").is_ok() {
-        if let Ok(v) = std::env::var("AILURUS_CHATID") {
-            (Some(Bot::from_env().auto_send()), Some(v))
-        } else {
-            error_and_exit!("TELOXIDE_TOKEN is set but AILURUS_CHATID not to set!");
-        }
-    } else {
-        warn!("TELOXIDE_TOKEN variable is not set, if you need Telegram bot to send messages, please set this variable as your telegram bot token");
+fn init_tgbot() -> Option<Sender> {
+    if std::env::var("TELOXIDE_TOKEN").is_err() {
+        return None;
+    }
 
-        (None, None)
-    };
+    let target_chat_id = unwrap_or_exit!(std::env::var("AILURUS_CHATID"));
+    let admin_chat_id = unwrap_or_exit!(std::env::var("AILURUS_ADMIN_CHATID"));
 
-    (bot, chat_id)
+    let target_chat_id = unwrap_or_exit!(target_chat_id.parse());
+    let admin_chat_id = unwrap_or_exit!(admin_chat_id.parse());
+
+    Some(Sender {
+        sender: Box::new(Tg::new()),
+        admin_chat_id,
+        target_chat_id,
+    })
 }
 
 async fn init_redis() -> Result<MultiplexedConnection> {
@@ -192,36 +185,36 @@ async fn tasker(task_args: TaskArgs<'_>) {
 
         let sleep_time = rng.gen_range(60..=180);
 
-        if let Some(dyn_id) = task_args.dynamic_id {
+        let bili_init = task_args.bili_init.clone();
+        let bili_init_clone = task_args.bili_init.clone();
+
+        let senders = &*task_args.senders;
+
+        if let Some(Some(dyn_id)) = bili_init.map(|x| x.dynamic_id) {
             let check_dynamic: BoxFuture<'_, Result<()>> = Box::pin(checker::check_dynamic_update(
                 task_args.con,
                 dyn_id,
                 &task_args.resp_client,
-                task_args.bot,
-                task_args.telegram_chat_id,
+                senders,
             ));
             tasks.push(check_dynamic);
         }
 
-        if let Some(live_id) = task_args.live_id {
+        if let Some(Some(live_id)) = bili_init_clone.map(|x| x.live_id) {
             let check_live: BoxFuture<'_, Result<()>> = Box::pin(checker::check_live_status(
                 task_args.con,
                 live_id,
                 &task_args.resp_client,
-                task_args.bot,
-                task_args.telegram_chat_id,
+                senders,
             ));
             tasks.push(check_live);
         }
 
-        if let Some(weibo) = task_args.weibo {
+        if let Some(ref weibo) = task_args.weibo {
             let check_weibo: BoxFuture<'_, Result<()>> = Box::pin(checker::check_weibo(
                 task_args.con,
-                task_args.bot,
+                senders,
                 weibo,
-                task_args.weibo_profile_url.as_ref().unwrap().clone(),
-                &task_args.resp_client,
-                task_args.telegram_chat_id,
             ));
             tasks.push(check_weibo);
         }

@@ -1,10 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
 use anyhow::{anyhow, bail, Result};
-use cookie_store::CookieStore;
 use fancy_regex::Regex;
 use reqwest::{header::HeaderMap, Client, Response, Url};
-use reqwest_cookie_store::CookieStoreMutex;
+use reqwest_cookie_store::{CookieStoreMutex, CookieStore};
 use rustyline::Editor;
 use serde::Deserialize;
 use tracing::info;
@@ -237,8 +236,8 @@ impl WeiboClient {
             }
         }
 
-        let mut reader = Editor::<()>::new();
-        let code = reader.readline(s)?;
+        let reader = Editor::<()>::new();
+        let code = reader?.readline(s)?;
 
         let query = &[("code", code.as_str()), ("msg_type", msg_type)];
         let resp = self.get(CODE_CHECK_URL, Some(query), None).await?;

@@ -1,28 +1,26 @@
 use anyhow::{anyhow, Result};
 use redis::{aio::MultiplexedConnection, AsyncCommands};
 use reqwest::Client;
-use teloxide::{adaptors::AutoSend, Bot};
 use time::{format_description, macros::offset, OffsetDateTime};
 use tracing::{error, info};
 
 use crate::{
     dynamic, live,
-    sender::{self, TelegramSend},
-    weibo::{self, WeiboClient},
+    sender::{self, Message},
+    weibo, Sender, WeiboInit,
 };
 
 pub async fn check_dynamic_update(
     con: &MultiplexedConnection,
     uid: u64,
     client: &Client,
-    bot: Option<&AutoSend<Bot>>,
-    telegram_chat_id: Option<i64>,
+    senders: &[Sender],
 ) -> Result<()> {
     let mut con = con.clone();
     info!("checking {} dynamic update ...", uid);
     let key = format!("dynamic-{}", uid);
     let key2 = format!("dynamic-{}-updated-id", uid);
-    let dynamic = dynamic::get_ailurus_dynamic(uid, client).await?;
+    let mut dynamic = dynamic::get_ailurus_dynamic(uid, client).await?;
     let v: Result<u64> = con.get(&key).await.map_err(|e| anyhow!("{}", e));
     if v.is_err() {
         info!("Creating new spy {}...", &key);
@@ -35,12 +33,12 @@ pub async fn check_dynamic_update(
         )
         .await?;
     }
-    let mut is_update = false;
-    let mut telegram_sends = vec![];
+
+    dynamic.reverse();
+
     if let Ok(t) = v {
-        for i in &dynamic {
+        for i in dynamic {
             if i.timestamp > t {
-                is_update = true;
                 let name = if let Some(name) = i.user.clone() {
                     name
                 } else {
@@ -54,13 +52,15 @@ pub async fn check_dynamic_update(
                 info!("用户「{}」有新动态！内容：{}", name, desc);
                 let date = timestamp_to_date(i.timestamp)?;
                 let url = format!("https://t.bilibili.com/{}", i.dynamic_id);
+
                 let s = format!(
                     "<b>「{}」有新动态啦！</b>\n{}\n{}\n\n{}",
                     name,
                     date,
-                    desc.replace('<', "【").replace('>', "】"),
+                    handle_msg(&desc),
                     url
                 );
+
                 let group = if let Some(picture) = i.picture.clone() {
                     let mut group = Vec::new();
                     for i in picture {
@@ -72,18 +72,20 @@ pub async fn check_dynamic_update(
                 } else {
                     None
                 };
-                telegram_sends.push(TelegramSend {
-                    msg: s,
-                    photos: group,
-                    photo: None,
-                });
+
+                sender::sends(
+                    senders,
+                    Message {
+                        text: s,
+                        photos: group,
+                    },
+                    false,
+                )
+                .await?;
+
                 con.set(&key2, i.dynamic_id).await?;
+                con.set(&key, i.timestamp).await?;
             }
-        }
-        check_and_send(bot, telegram_chat_id, telegram_sends, client).await?;
-        if is_update {
-            info!("Update {} timestamp", key);
-            con.set(&key, dynamic[0].timestamp).await?;
         }
     } else {
         error!("{}", v.unwrap_err());
@@ -96,8 +98,7 @@ pub async fn check_live_status(
     con: &MultiplexedConnection,
     room_id: u64,
     client: &Client,
-    bot: Option<&AutoSend<Bot>>,
-    telegram_chat_id: Option<i64>,
+    senders: &[Sender],
 ) -> Result<()> {
     let mut con = con.clone();
     info!("checking room {} live status update ...", room_id);
@@ -113,18 +114,23 @@ pub async fn check_live_status(
         if !db_live_status && ls == 1 {
             let s = format!(
                 "<b>「{}」开播啦！</b>\n{}\n{}\n\n{}",
-                live.uname.replace('<', "【").replace('>', "】"),
+                handle_msg(&live.uname),
                 date,
-                live.title.replace('<', "【").replace('>', "】"),
+                handle_msg(&live.title),
                 format_args!("https://live.bilibili.com/{}", live.room_id)
             );
             info!("{}", s);
-            let telegram_sends = vec![TelegramSend {
-                msg: s,
-                photos: None,
-                photo: Some(live.user_cover),
-            }];
-            check_and_send(bot, telegram_chat_id, telegram_sends, client).await?;
+
+            sender::sends(
+                senders,
+                Message {
+                    text: s,
+                    photos: Some(vec![live.user_cover]),
+                },
+                false,
+            )
+            .await?;
+
             con.set(key, true).await?;
         } else if db_live_status && ls == 1 {
             con.set(key, true).await?;
@@ -138,16 +144,13 @@ pub async fn check_live_status(
 
 pub async fn check_weibo(
     con: &MultiplexedConnection,
-    bot: Option<&AutoSend<Bot>>,
-    weibo: &WeiboClient,
-    profile_url: String,
-    client: &Client,
-    telegram_chat_id: Option<i64>,
+    senders: &[Sender],
+    weibo: &WeiboInit,
 ) -> Result<()> {
-    info!("Checking {} weibo ...", profile_url);
+    info!("Checking {} weibo ...", weibo.target_profile_url);
     let mut con = con.clone();
 
-    let uid = weibo::get_uid(&profile_url)?;
+    let uid = weibo::get_uid(&weibo.target_profile_url)?;
 
     let key = format!("weibo-{}", uid);
     let key_container_id = format!("weibo-{}-containerid", uid);
@@ -157,7 +160,10 @@ pub async fn check_weibo(
         .await
         .map_err(|e| anyhow!("{}", e));
 
-    let (ailurus, container_id) = weibo.get_ailurus(&profile_url, containerid.ok()).await?;
+    let (ailurus, container_id) = weibo
+        .weibo
+        .get_ailurus(&weibo.target_profile_url, containerid.ok())
+        .await?;
     con.set(&key_container_id, container_id).await?;
 
     let data = ailurus
@@ -190,7 +196,6 @@ pub async fn check_weibo(
 
         let old_created_at_index = old_created_at_index.unwrap_or(0);
 
-        let mut telegram_sends = vec![];
         for (i, c) in data.iter().enumerate() {
             if i < old_created_at_index {
                 let mblog = c
@@ -215,31 +220,19 @@ pub async fn check_weibo(
                     .as_ref()
                     .map(|x| x.iter().map(|x| x.url.clone()).collect::<Vec<_>>());
 
-                telegram_sends.push(TelegramSend {
-                    msg: s,
-                    photos,
-                    photo: None,
-                });
+                sender::sends(
+                    senders,
+                    Message {
+                        text: s,
+                        photos,
+                    },
+                    false,
+                )
+                .await?;
             }
         }
 
-        check_and_send(bot, telegram_chat_id, telegram_sends, client).await?;
         con.set(&key, first_mblog.created_at.clone()).await?;
-    }
-
-    Ok(())
-}
-
-async fn check_and_send(
-    bot: Option<&AutoSend<Bot>>,
-    telegram_chat_id: Option<i64>,
-    mut telegram_sends: Vec<TelegramSend>,
-    client: &Client,
-) -> Result<()> {
-    if let Some(bot) = bot {
-        if let Some(chat_id) = telegram_chat_id {
-            sender::send(&mut telegram_sends, bot, chat_id, client).await?;
-        }
     }
 
     Ok(())
@@ -252,4 +245,10 @@ fn timestamp_to_date(t: u64) -> Result<String> {
         .format(&format)?;
 
     Ok(date)
+}
+
+/// Fix telegram send html message
+#[inline]
+fn handle_msg(msg: &str) -> String {
+    msg.replace('<', "【").replace('>', "】")
 }
