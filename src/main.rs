@@ -30,10 +30,11 @@ macro_rules! unwrap_or_exit {
         }
     };
 }
+
 struct TaskArgs<'a> {
     con: &'a MultiplexedConnection,
     resp_client: reqwest::Client,
-    senders: &'a mut [Sender],
+    senders: &'a [Sender],
     weibo: Option<WeiboInit>,
     bili_init: Option<BilibiliInit>,
 }
@@ -48,6 +49,11 @@ pub struct Sender {
 struct BilibiliInit {
     dynamic_id: Option<u64>,
     live_id: Option<u64>,
+}
+
+pub struct WeiboInit {
+    weibo: WeiboClient,
+    target_profile_url: String,
 }
 
 #[tokio::main]
@@ -74,7 +80,7 @@ async fn main() {
         );
     }
 
-    let senders = &mut [tg.expect("Must unwrap success")][..];
+    let senders = &[tg.expect("Must unwrap success")][..];
 
     let con = unwrap_or_exit!(init_redis().await);
 
@@ -104,11 +110,6 @@ fn init_bilibili_dyn_and_live() -> Option<BilibiliInit> {
         dynamic_id,
         live_id,
     })
-}
-
-pub struct WeiboInit {
-    weibo: WeiboClient,
-    target_profile_url: String,
 }
 
 async fn init_weibo_client() -> Option<WeiboInit> {
