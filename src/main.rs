@@ -211,11 +211,8 @@ async fn tasker(task_args: TaskArgs<'_>) {
         }
 
         if let Some(ref weibo) = task_args.weibo {
-            let check_weibo: BoxFuture<'_, Result<()>> = Box::pin(checker::check_weibo(
-                task_args.con,
-                senders,
-                weibo,
-            ));
+            let check_weibo: BoxFuture<'_, Result<()>> =
+                Box::pin(checker::check_weibo(task_args.con, senders, weibo));
             tasks.push(check_weibo);
         }
 

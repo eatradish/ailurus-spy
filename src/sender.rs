@@ -90,7 +90,7 @@ impl AilurusSender for Tg {
     async fn send_msg(&self, chat_id: i64, msg: &str) -> Result<()> {
         let _ = self
             .bot
-            .send_message(Recipient::Id(ChatId(chat_id)), &*msg)
+            .send_message(Recipient::Id(ChatId(chat_id)), msg)
             .parse_mode(ParseMode::Html)
             .await?;
 

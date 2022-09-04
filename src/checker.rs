@@ -220,15 +220,7 @@ pub async fn check_weibo(
                     .as_ref()
                     .map(|x| x.iter().map(|x| x.url.clone()).collect::<Vec<_>>());
 
-                sender::sends(
-                    senders,
-                    Message {
-                        text: s,
-                        photos,
-                    },
-                    false,
-                )
-                .await?;
+                sender::sends(senders, Message { text: s, photos }, false).await?;
             }
         }
 

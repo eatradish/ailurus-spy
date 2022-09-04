@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use anyhow::{anyhow, bail, Result};
 use fancy_regex::Regex;
 use reqwest::{header::HeaderMap, Client, Response, Url};
-use reqwest_cookie_store::{CookieStoreMutex, CookieStore};
+use reqwest_cookie_store::{CookieStore, CookieStoreMutex};
 use rustyline::Editor;
 use serde::Deserialize;
 use tracing::info;
