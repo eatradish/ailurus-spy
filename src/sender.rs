@@ -113,6 +113,12 @@ impl AilurusSender for Tg {
             .send_media_group(Recipient::Id(ChatId(chat_id)), urls_after)
             .await?;
 
+        if let Some(caption) = caption {
+            if urls.len() > 1 {
+                self.send_msg(chat_id, caption).await?;
+            }
+        }
+
         Ok(())
     }
 }
