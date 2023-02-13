@@ -88,6 +88,7 @@ pub async fn send(
                 caption: Some(msg.to_string()),
                 parse_mode: Some(ParseMode::Html),
                 caption_entities: None,
+                has_spoiler: false,
             }));
         }
         send_group!(bot, chat_id, groups)?;
@@ -120,6 +121,7 @@ pub async fn send(
                     caption: Some(i.msg.clone()),
                     parse_mode: Some(ParseMode::Html),
                     caption_entities: None,
+                    has_spoiler: false,
                 }));
             }
             if let Err(e) = send_group!(bot, chat_id, groups) {
